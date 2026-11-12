@@ -1,0 +1,9 @@
+release/
+*.obj
+*.exe
+*.pdb
+*.ilk
+progs.dat
+progs.lno
+progdefs.h
+files.dat
