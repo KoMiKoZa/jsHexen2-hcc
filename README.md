@@ -97,6 +97,8 @@ too many globals: 65537, the progs format allows 65536
 
 ### Smaller changes
 
+- `\\` in a string gives a backslash, which Raven's HCC rejected. Message text can then use
+  the `\1` to `\4` lettering escapes of Shanjaq's uHexen2 and jsHexen2, written `"\\1"`.
 - Builds with Visual Studio 2022 (`build_vs2022.bat`).
 - `-quiet` also silences the line `-ot` prints about its temps.
 

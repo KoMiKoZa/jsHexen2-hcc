@@ -215,6 +215,8 @@ static void LexString(void)
 				c = '\n';
 			else if (c == '"')
 				c = '"';
+			else if (c == '\\')
+				c = '\\';	// [2026-11-13 v0.9.8] Komi - a backslash, e.g. "\\1" for the \1 charset escape
 			else
 				MS_ParseError("unknown escape char");
 		}
