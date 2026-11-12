@@ -1,6 +1,6 @@
-<p align="center"><img src=".github/icon.png" width="96" height="96" alt="jsHexen2 HCC"></p>
+<p align="center"><img src=".github/icon.png" width="96" height="96" alt="jsHexen2 HexenC Compiler"></p>
 
-# jsHexen2 HCC
+# jsHexen2 HexenC Compiler
 
 ![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)
 ![HCC](https://img.shields.io/badge/hcc-1.0.0-orange.svg)
