@@ -30,7 +30,7 @@ they are computed and their last use. The same jsHexen2 progs compiles to 12,928
   built with `-ot` behaves exactly like one built without it.
 - Saves store globals, fields and functions by name, and none of those names change, so saves
   load in either build.
-- Without `-ot`, the output is the same as Raven's HCC.
+- Without `-ot`, intermediate results get their globals the way Raven's HCC gives them.
 
 ### The overwritten return value (a Raven HCC bug)
 
