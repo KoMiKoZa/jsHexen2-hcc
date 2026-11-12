@@ -32,31 +32,45 @@ they are computed and their last use. The same jsHexen2 progs compiles to 12,928
   load in either build.
 - Without `-ot`, the output is the same as Raven's HCC.
 
-### A later call no longer overwrites a result
+### The overwritten return value (a Raven HCC bug)
 
 Every call and every `random()` or `randomv()` leaves its result in one shared return slot, and
-HCC reads it from there. When a second call runs before the first result is used, the second
-result is read in place of the first:
+Raven's HCC reads it from there. When a second call in the same expression runs before the first
+result is used, the second result is read in place of the first:
 
 ```c
-if (normalize(self.velocity) * normalize(other.origin - self.origin) > 0.2)   // both sides are the second normalize()
-if (visible(self.enemy) && infront(self.enemy))                               // tests infront() twice
-particle4(self.origin, random(20), 264 * 15, PARTICLETYPE_GRAV, random() * 10); // the radius is the last random()
+if (visible(self.enemy) && infront(self.enemy))   // Raven's HCC runs this as infront() && infront()
+	...
 ```
 
-This compiler keeps the first result in a temp before the second call runs, and prints a warning
-for each place it does so:
+This is not a corner case. Raven's own Hexen II game code has ten such expressions, and they
+change how the game plays:
+
+- Golems fire their eye beam without line of sight.
+- Hurt imps and sheep stagger toward a fixed direction instead of away from what hurt them.
+- Mezzomen block shots that come from behind them.
+- Mezzomen and yakmen roar over a kill through walls.
+- In co-op, a player pushes another from any side.
+- The Pentacles climbs down even when the step down is blocked.
+- Some particle sprays come out narrower than written.
+
+This compiler keeps the first result before the second call runs, so the line does what it says.
+It prints a warning with the file and line at each place it fixes:
 
 ```
-client.hc(2248) : warning : kept the result of normalize() in a temp: a later call in this expression would overwrite it
+golem.hc(1026) : warning : kept the result of visible() in a temp: a later call in this expression would overwrite it
 ```
 
-Code without such an expression compiles exactly as before. The fix is on by default, with or
-without `-ot`. The temp is an ordinary HCC temp, so in a function that calls itself between the two
-calls, as in `return fib(n - 1) + fib(n - 2);`, the inner call can still overwrite it, as it can any
-temp of that expression; such code needs a local variable. The warning lists the places where your progs now does what its source says, which
-can differ from what a Raven HCC build did. If you need an exact match with an older build, `-noretfix`
-compiles these expressions the way HCC always did.
+Code without such an expression compiles byte for byte as before. The fix is on by default, with or
+without `-ot`. The kept result is an ordinary HCC temp, so if a function calls itself between the
+two calls, as in `return fib(n - 1) + fib(n - 2);`, the inner call can still overwrite it, as it
+can any temp of that expression; keep such a result in a local variable.
+
+If you need Raven's exact output, for example to match an older build of your mod, `-noretfix`
+compiles these expressions the way Raven's HCC did.
+
+[jsHexen2 Progs](https://github.com/KoMiKoZa/jsHexen2-progs) fixes all ten in the source; its
+changelog tags them **[RAVEN HCC BUG]**.
 
 ### A progs too big for the format stops the build
 
