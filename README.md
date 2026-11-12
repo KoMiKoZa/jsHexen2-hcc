@@ -6,6 +6,16 @@
 ![HCC](https://img.shields.io/badge/hcc-1.0.0-orange.svg)
 ![Base](https://img.shields.io/badge/base-Raven_HCC-8B0000.svg)
 
+> [!TIP]
+> **Works with any Hexen II engine.** Same HexenC in, same standard `progs.dat` out, Raven's
+> original Hexen II included. It's a drop-in replacement for Raven's HCC with the same command
+> line, and your code needs no changes.
+>
+> - **Fits about four times more code:** `-ot` cuts the globals a progs needs by about 80%.
+> - **Fixes a Raven compiler bug** that silently broke parts of Hexen II's own game code, and
+>   warns you where your code had it.
+> - **Never writes a broken progs:** too big for the format, and the build stops with an error.
+
 HCC is Raven Software's HexenC compiler, the tool that turns Hexen II game code into `progs.dat`.
 This is Raven's HCC from the Portal of Praevus tools source, maintained alongside the
 [jsHexen2](https://github.com/KoMiKoZa) engine and used to build
