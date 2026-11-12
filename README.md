@@ -18,13 +18,17 @@ Hexen II engine runs. Your mod does not need jsHexen2 to use it.
 
 ### `-ot`: room for much more code
 
+**`-ot` cuts the globals a progs needs by about 80%.** jsHexen2's progs went from 99.8% of the
+65,536 limit to 20%, leaving room for roughly four times as much new code. The file also comes out
+about 17% smaller.
+
 HCC gives every intermediate result of every expression a global of its own, and never reuses it.
 A `progs.dat` can address at most 65,536 globals, so a large progs runs out long before it runs out
-of anything else: jsHexen2's progs used 65,313 of them, and Raven's own Portal of Praevus progs
+of anything else: jsHexen2's progs uses 65,392 of them, and Raven's own Portal of Praevus progs
 uses 64,454.
 
 With `-ot`, intermediate results share globals whenever no other code can run between the moment
-they are computed and their last use. The same jsHexen2 progs compiles to 12,928 globals.
+they are computed and their last use. The same jsHexen2 progs compiles to 12,997 globals.
 
 - The instructions are the same; only the globals that hold intermediate results change. A progs
   built with `-ot` behaves exactly like one built without it.
