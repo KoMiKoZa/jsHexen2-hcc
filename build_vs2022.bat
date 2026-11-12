@@ -2,7 +2,7 @@
 setlocal
 
 REM Builds hcc.exe (Raven's HexenC compiler with jsHexen2's -ot) with VS 2022.
-REM Output: H2MPUTIL\source\hcc\release\hcc.exe
+REM Output: release\hcc.exe
 
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 if not exist "%VSWHERE%" (
