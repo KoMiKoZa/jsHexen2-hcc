@@ -132,7 +132,9 @@ that look up definitions by name may not find them; leave it off unless you need
 
 ## Building
 
-On Windows with Visual Studio 2022 (the "Desktop development with C++" workload), run:
+A ready-built `hcc.exe` for Windows is on the
+[Releases](https://github.com/KoMiKoZa/jsHexen2-hcc/releases) page. To build it yourself, on
+Windows with Visual Studio 2022 (the "Desktop development with C++" workload), run:
 
 ```
 build_vs2022.bat

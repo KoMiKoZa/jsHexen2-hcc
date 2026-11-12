@@ -1,0 +1,53 @@
+# Pushing a tag such as v1.0.1 builds hcc.exe and publishes a release with it.
+# Notes come from .github/release-notes/<tag>.md when that file exists.
+# "Run workflow" on the Actions tab only builds and keeps the zip as a download.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        shell: cmd
+        run: call build_vs2022.bat
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $v = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:TAG.TrimStart('v') } else { 'test' }
+          $name = "jsHexen2-hcc-$v"
+          New-Item -ItemType Directory $name | Out-Null
+          Copy-Item release\hcc.exe, README.md, LICENSE -Destination $name
+          Compress-Archive -Path $name -DestinationPath "$name-win32.zip"
+          $hash = (Get-FileHash "$name\hcc.exe" -Algorithm SHA256).Hash
+          $notes = ".github/release-notes/$env:TAG.md"
+          if (Test-Path $notes) { Copy-Item $notes notes.md } else { Set-Content notes.md '' }
+          Add-Content notes.md "`nSHA-256 of ``hcc.exe``: ``$hash``"
+          "ZIP=$name-win32.zip" >> $env:GITHUB_ENV
+          "TITLE=jsHexen2 HexenC Compiler $v" >> $env:GITHUB_ENV
+
+      - name: Keep the zip (test builds)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIP }}
+          path: ${{ env.ZIP }}
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:TAG $env:ZIP --title $env:TITLE --notes-file notes.md
