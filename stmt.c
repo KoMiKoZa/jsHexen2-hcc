@@ -502,7 +502,7 @@ static void ParseIf(void)
 
 static def_t *Condition(def_t *e, int *ifOpcode)
 {
-	if(e->type->type != ev_vector || hcc_KeepIfVectorBug)
+	if(e == NULL || e->type->type != ev_vector || hcc_KeepIfVectorBug)
 	{
 		return e;
 	}

@@ -75,7 +75,7 @@ It prints a warning with the file and line at each place it fixes:
 golem.hc(1026) : warning : kept the result of visible() in a temp: a later call in this expression would overwrite it
 ```
 
-Code without such an expression compiles byte for byte as before. The fix is on by default, with or
+Code without such an expression compiles to the same instructions as before. The fix is on by default, with or
 without `-ot`. The kept result is an ordinary HCC temp, so if a function calls itself between the
 two calls, as in `return fib(n - 1) + fib(n - 2);`, the inner call can still overwrite it, as it
 can any temp of that expression; keep such a result in a local variable.
@@ -102,7 +102,7 @@ This compiler tests all three components, as `!vector` does, and prints a warnin
 object.hc(352) : warning : this vector condition tests x, y and z: Raven's HCC tested only x
 ```
 
-Code without a vector condition compiles byte for byte as before. `-noifvecfix` tests only x, as
+Code without a vector condition compiles to the same instructions as before. `-noifvecfix` tests only x, as
 Raven's HCC did. To keep the meaning the same under every compiler, write the test as
 `if (self.velocity != '0 0 0')`.
 
@@ -141,7 +141,7 @@ too many globals: 65537, the progs format allows 65536
   the function body instead:
 
   ```
-  golem.hc(1291) : warning : local 'numSolid' is initialized when the progs loads, not on each call: assign it in the function body
+  golem.hc(1291) : warning : local 'numSolid' gets its value when the progs loads, not from code: a nested call into this function starts with the outer call's value; assign it in the function body
   ```
 - Builds with Visual Studio 2022 (`build_vs2022.bat`).
 - `-quiet` also silences the line `-ot` prints about its temps.

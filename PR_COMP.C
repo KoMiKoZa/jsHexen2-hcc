@@ -1591,9 +1591,10 @@ void CO_ParseDefs(void)
 			// every call.
 			if(pr_scope != NULL)
 			{
-				MS_ParseWarning("local '%s' is initialized when the progs "
-					"loads, not on each call: assign it in the function body",
-					name);
+				MS_ParseWarning("local '%s' gets its value when the progs "
+					"loads, not from code: a nested call into this function "
+					"starts with the outer call's value; assign it in the "
+					"function body", name);
 			}
 
 			if(elementCount != 0)
