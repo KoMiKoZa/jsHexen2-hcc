@@ -1327,6 +1327,12 @@ static function_t *ParseImmediateStatements(type_t *type)
 			MS_ParseError("bad parm order");
 		}
 	}
+	// [2026-11-13 v0.9.8] Komi - The saved locals range ended at the last
+	// local declaration, so a function with none saved none of its
+	// parameters: re-entered through a nested call, it came back with the
+	// inner call's values in them. No temp exists yet, so temps stay on the
+	// side of the range they were on.
+	locals_end = numpr_globals;
 
 	f->code = numstatements;
 
@@ -1576,6 +1582,18 @@ void CO_ParseDefs(void)
 			if(type->type == ev_field)
 			{
 				MS_ParseError("fields cannot be initialized");
+			}
+			// [2026-11-13 v0.9.8] Komi - A local's value is written into the
+			// progs, not assigned by code. The engine restores a function's
+			// locals when it returns, so a call usually starts with this
+			// value, but a call made while the function is already running
+			// starts with the value it has then. Other compilers assign it on
+			// every call.
+			if(pr_scope != NULL)
+			{
+				MS_ParseWarning("local '%s' is initialized when the progs "
+					"loads, not on each call: assign it in the function body",
+					name);
 			}
 
 			if(elementCount != 0)

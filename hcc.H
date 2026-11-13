@@ -184,6 +184,7 @@ extern int hcc_OptimizeImmediates;
 extern int hcc_OptimizeNameTable;
 extern int hcc_OptimizeTemps;
 extern int hcc_KeepReturnBug;
+extern int hcc_KeepIfVectorBug;
 extern qboolean hcc_WarningsActive;
 extern qboolean hcc_ShowUnrefFuncs;
 

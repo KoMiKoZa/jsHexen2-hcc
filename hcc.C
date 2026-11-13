@@ -769,6 +769,7 @@ void main(int argc, char **argv)
 		printf(" -on			  : Optimize Name Table\n");
 		printf(" -ot              : Optimize Temps (reuse temp registers)\n");
 		printf(" -noretfix        : Let a later call overwrite an unused result, as HCC did\n");
+		printf(" -noifvecfix      : Test only x in if (vector) and the like, as HCC did\n");
 		printf(" -quiet           : Quiet mode\n");
 		printf(" -fileinfo        : Show object sizes per file\n");
 		printf(" -src <directory> : Specify source directory\n");
@@ -820,6 +821,7 @@ void main(int argc, char **argv)
 	hcc_OptimizeNameTable = MS_CheckParm("-on");
 	hcc_OptimizeTemps = MS_CheckParm("-ot");
 	hcc_KeepReturnBug = MS_CheckParm("-noretfix");
+	hcc_KeepIfVectorBug = MS_CheckParm("-noifvecfix");
 	hcc_WarningsActive = MS_CheckParm("-nowarnings") ? false : true;
 	hcc_ShowUnrefFuncs = MS_CheckParm("-urfunc") ? true : false;
 

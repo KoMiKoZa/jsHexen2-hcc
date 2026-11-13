@@ -12,8 +12,8 @@
 > line, and your code needs no changes.
 >
 > - **Fits about four times more code:** `-ot` cuts the globals a progs needs by about 80%.
-> - **Fixes a Raven compiler bug** that silently broke parts of Hexen II's own game code, and
->   warns you where your code had it.
+> - **Fixes Raven compiler bugs** that silently broke parts of Hexen II's own game code, and
+>   warns you where your code had them.
 > - **Never writes a broken progs:** too big for the format, and the build stops with an error.
 
 HCC is Raven Software's HexenC compiler, the tool that turns Hexen II game code into `progs.dat`.
@@ -80,11 +80,42 @@ without `-ot`. The kept result is an ordinary HCC temp, so if a function calls i
 two calls, as in `return fib(n - 1) + fib(n - 2);`, the inner call can still overwrite it, as it
 can any temp of that expression; keep such a result in a local variable.
 
-If you need Raven's exact output, for example to match an older build of your mod, `-noretfix`
+If you need Raven's code, for example to match an older build of your mod, `-noretfix`
 compiles these expressions the way Raven's HCC did.
 
 [jsHexen2 Progs](https://github.com/KoMiKoZa/jsHexen2-progs) fixes all ten in the source; its
 changelog tags them **[RAVEN HCC BUG]**.
+
+### `if (vector)` tests only x (a Raven HCC bug)
+
+A condition jumps on a single float, and Raven's HCC handed it the vector's first component, so
+`if (self.velocity)` was false for anything moving only along y or z. The same went for `while`,
+`until`, `do ... while`, `do ... until` and `if not` with a vector. `!vector` was always right.
+
+Hexen II's own game code has 34 such tests: 25 in Praevus, the others in Death's horse, the
+hydra, the tornado, the mezzoman's reflection, pushable objects, the Pentacles and ordered
+counters.
+
+This compiler tests all three components, as `!vector` does, and prints a warning at each place:
+
+```
+object.hc(352) : warning : this vector condition tests x, y and z: Raven's HCC tested only x
+```
+
+Code without a vector condition compiles byte for byte as before. `-noifvecfix` tests only x, as
+Raven's HCC did. To keep the meaning the same under every compiler, write the test as
+`if (self.velocity != '0 0 0')`.
+
+### Parameters survive a nested call (a Raven HCC bug)
+
+On each call the engine saves the function's parameters and locals, and restores them when the
+call returns, so a function can be called again while it is running. Raven's HCC ended that
+range at the last local declaration, so in a function with no locals the parameters weren't
+saved: after a nested call back into the same function, they held the inner call's values. This
+compiler always saves them. jsHexen2 Progs has 105 such functions, `AddMultDamg` among them.
+
+Only the size of the saved range changes; the instructions are the same, and there is no switch
+for it.
 
 ### A progs too big for the format stops the build
 
@@ -103,6 +134,15 @@ too many globals: 65537, the progs format allows 65536
   field name in the progs that other compilers don't write. A save then failed the save checks
   of engines that compare these names, such as jsHexen2's, when the progs was rebuilt with
   another compiler. The compiled code is unchanged.
+- A local declared with a value, such as `float n = 4;`, gets a warning. HCC writes the value
+  into the progs; no code assigns it. A call usually starts with it anyway, because the engine
+  restores a function's locals when it returns, but a nested call into the same function starts
+  with whatever value the outer call left. Other compilers assign it on every call. Assign it in
+  the function body instead:
+
+  ```
+  golem.hc(1291) : warning : local 'numSolid' is initialized when the progs loads, not on each call: assign it in the function body
+  ```
 - Builds with Visual Studio 2022 (`build_vs2022.bat`).
 - `-quiet` also silences the line `-ot` prints about its temps.
 
@@ -122,6 +162,7 @@ hcc -ot -name progs.src
 | `-src <folder>` | Read the `.src` and `.hc` files from this folder. |
 | `-ot` | Share globals between intermediate results (see above). |
 | `-noretfix` | Let a later call overwrite an unused result, as Raven's HCC did. |
+| `-noifvecfix` | Test only x in `if (vector)` and the other vector conditions, as Raven's HCC did. |
 | `-oi` | Share immediates (constants) with named constants of the same value. |
 | `-on` | Write a smaller name table: locals and unsaved globals get no names. |
 | `-quiet` | Print less. |

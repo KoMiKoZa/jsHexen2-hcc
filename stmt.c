@@ -68,6 +68,7 @@ static void ParseBreak(void);
 static void ParseContinue(void);
 static void ParseDefault(void);
 static void ParseThinktime(void);
+static def_t *Condition(def_t *e, int *ifOpcode);
 static void AddCase(etype_t type, def_t *value1, def_t *value2,
 	qboolean isDefault);
 static int GetCaseInfo(caseInfo_t **info);
@@ -84,6 +85,7 @@ static void FixContinues(int statement);
 
 type_t *st_ReturnType;
 qboolean st_ReturnParsed;
+int hcc_KeepIfVectorBug;
 
 // PRIVATE DATA DEFINITIONS ------------------------------------------------
 
@@ -350,6 +352,7 @@ static void ParseWhile(void)
 {
 	def_t *e;
 	dstatement_t *patch1, *patch2;
+	int ifOpcode;
 	def_t tempDef;
 	int contStatement;
 
@@ -357,10 +360,12 @@ static void ParseWhile(void)
 	contStatement = numstatements;
 	patch2 = &statements[numstatements];
 	e = EX_Expression(TOP_PRIORITY);
+	ifOpcode = OP_IFNOT;
+	e = Condition(e, &ifOpcode);
 	LX_Require(")");
 	LX_CheckFetch("do");
 	patch1 = &statements[numstatements];
-	CO_GenCode(&pr_opcodes[OP_IFNOT], e, 0);
+	CO_GenCode(&pr_opcodes[ifOpcode], e, 0);
 	ParseStatement(SCONTEXT_WHILE);
 	tempDef.ofs = patch2 - &statements[numstatements];
 	CO_GenCode(&pr_opcodes[OP_GOTO], &tempDef, 0);
@@ -379,6 +384,7 @@ static void ParseUntil(void)
 {
 	def_t *e;
 	dstatement_t *patch1, *patch2;
+	int ifOpcode;
 	def_t tempDef;
 	int contStatement;
 
@@ -386,10 +392,12 @@ static void ParseUntil(void)
 	contStatement = numstatements;
 	patch2 = &statements[numstatements];
 	e = EX_Expression(TOP_PRIORITY);
+	ifOpcode = OP_IF;
+	e = Condition(e, &ifOpcode);
 	LX_Require(")");
 	LX_CheckFetch("do");
 	patch1 = &statements[numstatements];
-	CO_GenCode(&pr_opcodes[OP_IF], e, 0);
+	CO_GenCode(&pr_opcodes[ifOpcode], e, 0);
 	ParseStatement(SCONTEXT_UNTIL);
 	tempDef.ofs = patch2 - &statements[numstatements];
 	CO_GenCode(&pr_opcodes[OP_GOTO], &tempDef, 0);
@@ -426,6 +434,7 @@ static void ParseDo(void)
 	LX_Require("(");
 	contStatement = numstatements;
 	e = EX_Expression(TOP_PRIORITY);
+	e = Condition(e, &ifOpcode);
 	LX_Require(")");
 	LX_Require(";");
 	tempDef.ofs = patch1 - &statements[numstatements];
@@ -457,6 +466,7 @@ static void ParseIf(void)
 
 	LX_Require("(");
 	e = EX_Expression(TOP_PRIORITY);
+	e = Condition(e, &ifOpcode);
 	LX_Require(")");
 
 	patch1 = &statements[numstatements];
@@ -476,6 +486,30 @@ static void ParseIf(void)
 	{
 		patch1->b = &statements[numstatements] - patch1;
 	}
+}
+
+//==========================================================================
+//
+// Condition
+//
+// [2026-11-13 v0.9.8] Komi - IF and IFNOT test a single float, so HCC's
+// if (v), while (v) and the other vector conditions tested only v_x: a
+// vector along y or z counted as zero. Now NOT_V tests all three, as !v
+// always did, and the jump is reversed to match. -noifvecfix keeps HCC's
+// original behavior.
+//
+//==========================================================================
+
+static def_t *Condition(def_t *e, int *ifOpcode)
+{
+	if(e->type->type != ev_vector || hcc_KeepIfVectorBug)
+	{
+		return e;
+	}
+	MS_ParseWarning("this vector condition tests x, y and z: "
+		"Raven's HCC tested only x");
+	*ifOpcode = *ifOpcode == OP_IF ? OP_IFNOT : OP_IF;
+	return CO_GenCode(&pr_opcodes[OP_NOT_V], e, 0);
 }
 
 //==========================================================================
