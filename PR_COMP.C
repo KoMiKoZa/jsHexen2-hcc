@@ -1491,7 +1491,10 @@ def_t *PR_GetDef(type_t *type, char *name, def_t *scope,
 		CO_CheckRegisters();
 	}
 
-	if(type->type == ev_field)
+	// [2026-11-13 v0.9.8] Komi - A field-typed parameter or local (".float fld") holds a field
+	// reference passed in or assigned; only a global declaration makes a field.
+	// Raven's HCC gave each one entity space and a field def of its own.
+	if(type->type == ev_field && scope == NULL)
 	{
 		*(int *)&pr_globals[def->ofs] = pr.size_fields;
 		if(type->aux_type->type == ev_vector)
