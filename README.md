@@ -99,8 +99,7 @@ too many globals: 65537, the progs format allows 65536
 
 - `\\` in a string gives a backslash, which Raven's HCC rejected. Message text can then use
   the `\1` to `\4` lettering escapes of Shanjaq's uHexen2 and jsHexen2, written `"\\1"`.
-- A function parameter or local of a field type, such as `.float fld`, holds the field passed
-  to it. Raven's HCC also gave it a field of its own: an unused slot on every entity, and a
+- A function parameter of a field type, such as `.float fld`, holds the field passed to it. Raven's HCC also gave it a field of its own: an unused slot on every entity, and a
   field name in the progs that other compilers don't write. A save then failed the save checks
   of engines that compare these names, such as jsHexen2's, when the progs was rebuilt with
   another compiler. The compiled code is unchanged.

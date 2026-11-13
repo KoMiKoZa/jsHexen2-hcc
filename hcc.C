@@ -228,7 +228,7 @@ void WriteData(int crc)
 	for(def = pr.def_head.next; def; def = def->next)
 	{
 		// [2026-11-13 v0.9.8] Komi - a field def only for a real field, not a field-typed
-		// parameter or local (PR_GetDef no longer gives those entity space)
+		// parameter (PR_GetDef no longer gives those entity space)
 		if(def->type->type == ev_field && def->scope == NULL)
 		{
 			dd = &fields[numfielddefs];
