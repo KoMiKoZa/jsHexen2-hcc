@@ -24,6 +24,53 @@ This is Raven's HCC from the Portal of Praevus tools source, maintained alongsid
 It reads the same HexenC and writes the same standard `progs.dat` format (version 6) that every
 Hexen II engine runs. Your mod does not need jsHexen2 to use it.
 
+## Usage
+
+Run it in the folder that holds your `progs.src`. The first line of `progs.src` names the output
+file, and the lines after it list the `.hc` files in compile order, as with Raven's HCC.
+
+```
+cd portals
+hcc -ot -name progs.src
+```
+
+It compiles HexenC as Raven's HCC defines it. Extensions that FTEQCC adds, such as the
+preprocessor (`#define`, `#ifdef`, `#include`), `for` loops, `?:` and `%`, are not supported.
+
+| Option | Effect |
+|---|---|
+| `-name <file>` | The `.src` file to compile (default `progs.src`). |
+| `-src <folder>` | Read the `.src` and `.hc` files from this folder. |
+| `-ot` | Share globals between intermediate results (see below). |
+| `-noretfix` | In an expression with two calls, let the later call overwrite the earlier result, as Raven's HCC did. |
+| `-noifvecfix` | Test only x in `if (vector)` and the other vector conditions, as Raven's HCC did. |
+| `-oi` | Share immediates (constants) with named constants of the same value. |
+| `-on` | Write a smaller name table: locals and unsaved globals get no names. |
+| `-quiet` | Print less. |
+| `-fileinfo` | Print the size of each compiled file. |
+| `-nowarnings` | Print no warnings. |
+| `-urfunc` | List functions that are never referenced. |
+| `-asm <function ...>` | Print the compiled statements of these functions. |
+
+Besides `progs.dat`, HCC writes `progdefs.h` (the engine-facing globals and fields) and `files.dat`
+(the precache lists).
+
+`-on` drops the names of locals and of globals that saves don't store, so engine features or tools
+that look up definitions by name may not find them; leave it off unless you need the space.
+
+## Building
+
+A ready-built `hcc.exe` for Windows is on the
+[Releases](https://github.com/KoMiKoZa/jsHexen2-hcc/releases) page. To build it yourself, on
+Windows with Visual Studio 2022 (the "Desktop development with C++" workload), run:
+
+```
+build_vs2022.bat
+```
+
+The compiler is written to `release\hcc.exe`. The source is plain C with no dependencies besides
+the C library; other compilers are untested.
+
 ## What's different from Raven's HCC
 
 ### `-ot`: room for much more code
@@ -150,53 +197,6 @@ golem.hc(1291) : warning : local 'numSolid' gets its value when the progs loads,
   save, jsHexen2 among them, could then refuse saves after the progs was rebuilt with another
   compiler. The compiled code is unchanged.
 - `-quiet` also silences the line `-ot` prints about intermediate results.
-
-## Usage
-
-Run it in the folder that holds your `progs.src`. The first line of `progs.src` names the output
-file, and the lines after it list the `.hc` files in compile order, as with Raven's HCC.
-
-```
-cd portals
-hcc -ot -name progs.src
-```
-
-It compiles HexenC as Raven's HCC defines it. Extensions that FTEQCC adds, such as the
-preprocessor (`#define`, `#ifdef`, `#include`), `for` loops, `?:` and `%`, are not supported.
-
-| Option | Effect |
-|---|---|
-| `-name <file>` | The `.src` file to compile (default `progs.src`). |
-| `-src <folder>` | Read the `.src` and `.hc` files from this folder. |
-| `-ot` | Share globals between intermediate results (see above). |
-| `-noretfix` | In an expression with two calls, let the later call overwrite the earlier result, as Raven's HCC did. |
-| `-noifvecfix` | Test only x in `if (vector)` and the other vector conditions, as Raven's HCC did. |
-| `-oi` | Share immediates (constants) with named constants of the same value. |
-| `-on` | Write a smaller name table: locals and unsaved globals get no names. |
-| `-quiet` | Print less. |
-| `-fileinfo` | Print the size of each compiled file. |
-| `-nowarnings` | Print no warnings. |
-| `-urfunc` | List functions that are never referenced. |
-| `-asm <function ...>` | Print the compiled statements of these functions. |
-
-Besides `progs.dat`, HCC writes `progdefs.h` (the engine-facing globals and fields) and `files.dat`
-(the precache lists).
-
-`-on` drops the names of locals and of globals that saves don't store, so engine features or tools
-that look up definitions by name may not find them; leave it off unless you need the space.
-
-## Building
-
-A ready-built `hcc.exe` for Windows is on the
-[Releases](https://github.com/KoMiKoZa/jsHexen2-hcc/releases) page. To build it yourself, on
-Windows with Visual Studio 2022 (the "Desktop development with C++" workload), run:
-
-```
-build_vs2022.bat
-```
-
-The compiler is written to `release\hcc.exe`. The source is plain C with no dependencies besides
-the C library; other compilers are untested.
 
 ## Credits
 
