@@ -19,10 +19,8 @@
 HCC is Raven Software's HexenC compiler, the tool that turns Hexen II game code into `progs.dat`.
 This is Raven's HCC from the Portal of Praevus tools source, maintained alongside the
 [jsHexen2](https://github.com/KoMiKoZa) engine and used to build
-[jsHexen2 Progs](https://github.com/KoMiKoZa/jsHexen2-progs).
-
-It reads the same HexenC and writes the same standard `progs.dat` format (version 6) that every
-Hexen II engine runs. Your mod does not need jsHexen2 to use it.
+[jsHexen2 Progs](https://github.com/KoMiKoZa/jsHexen2-progs). Your mod doesn't need jsHexen2 to
+use it.
 
 ## Usage
 
