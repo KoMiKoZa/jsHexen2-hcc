@@ -203,6 +203,8 @@ the C library; other compilers are untested.
 - **Raven Software** wrote HCC and released it, with the Hexen II source, under the GNU GPL v2.
 - **NHCC** (Jacques Krige) and the **hcc of Hammer of Thyrion** (uHexen2) are earlier builds of
   Raven's HCC. This compiler comes from Raven's source and shares no code with them.
+- **FTEQCC** (Spike): comparing this compiler's output with FTEQCC's found two of the Raven bugs
+  fixed here.
 
 ## License
 
