@@ -147,7 +147,7 @@ A condition tests a single float, and Raven's HCC gave it the vector's first com
 `if (self.velocity)` was false for anything moving only along y or z. The same went for `if not`,
 `while`, `until`, `do ... while` and `do ... until` with a vector. `!vector` was always right.
 
-Hexen II's own game code has 34 such tests: 25 in the Praevus boss, the others in Death's horse,
+Hexen II's own game code has 34 such tests: 24 in the Praevus boss, the others in Death's horse,
 the hydra, the tornado, the mezzoman's reflection, pushable objects, the Pentacles and ordered
 counters.
 
