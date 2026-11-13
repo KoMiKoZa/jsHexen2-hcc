@@ -7,14 +7,14 @@
 ![Base](https://img.shields.io/badge/base-Raven_HCC-8B0000.svg)
 
 > [!TIP]
-> **Works with any Hexen II engine.** Same HexenC in, same standard `progs.dat` out, Raven's
-> original Hexen II included. It's a drop-in replacement for Raven's HCC with the same command
-> line, and your code needs no changes.
+> **Works with any Hexen II engine.** It reads the same HexenC and writes the same standard
+> `progs.dat`, so it also works with Raven's original Hexen II. It's a drop-in replacement for
+> Raven's HCC with the same command line, and your code compiles as it is.
 >
 > - **Fits about four times more code:** `-ot` cuts the globals a progs needs by about 80%.
 > - **Fixes Raven compiler bugs** that silently broke parts of Hexen II's own game code, and
 >   warns you where your code had them.
-> - **Never writes a broken progs:** too big for the format, and the build stops with an error.
+> - **Never writes a progs too big for the format:** the build stops with an error instead.
 
 HCC is Raven Software's HexenC compiler, the tool that turns Hexen II game code into `progs.dat`.
 This is Raven's HCC from the Portal of Praevus tools source, maintained alongside the
@@ -46,6 +46,15 @@ they are computed and their last use. The same jsHexen2 progs compiles to 12,997
   load in either build.
 - Without `-ot`, intermediate results get their globals the way Raven's HCC gives them.
 
+### A progs too big for the format stops the build
+
+A progs that needs more than 65,536 globals cannot be addressed by any engine. Raven's HCC wrote
+it anyway and reported success; this one stops with an error:
+
+```
+too many globals: 65537, the progs format allows 65536
+```
+
 ### The overwritten return value (a Raven HCC bug)
 
 Every call and every `random()` or `randomv()` leaves its result in one shared return slot, and
@@ -75,10 +84,11 @@ It prints a warning with the file and line at each place it fixes:
 golem.hc(1026) : warning : kept the result of visible() in a temp: a later call in this expression would overwrite it
 ```
 
-Code without such an expression compiles to the same instructions as before. The fix is on by default, with or
-without `-ot`. The kept result is an ordinary HCC temp, so if a function calls itself between the
-two calls, as in `return fib(n - 1) + fib(n - 2);`, the inner call can still overwrite it, as it
-can any temp of that expression; keep such a result in a local variable.
+Code without such an expression compiles to the same instructions as with Raven's HCC. The fix is
+on by default, with or without `-ot`. The kept result is an ordinary intermediate result, so if a
+function calls itself between the two calls, as in `return fib(n - 1) + fib(n - 2);`, the inner
+call can still overwrite it, as it can any other intermediate result of that expression; keep such
+a result in a local variable.
 
 If you need Raven's code, for example to match an older build of your mod, `-noretfix`
 compiles these expressions the way Raven's HCC did.
@@ -88,12 +98,12 @@ changelog tags them **[RAVEN HCC BUG]**.
 
 ### `if (vector)` tests only x (a Raven HCC bug)
 
-A condition jumps on a single float, and Raven's HCC handed it the vector's first component, so
-`if (self.velocity)` was false for anything moving only along y or z. The same went for `while`,
-`until`, `do ... while`, `do ... until` and `if not` with a vector. `!vector` was always right.
+A condition tests a single float, and Raven's HCC gave it the vector's first component, so
+`if (self.velocity)` was false for anything moving only along y or z. The same went for `if not`,
+`while`, `until`, `do ... while` and `do ... until` with a vector. `!vector` was always right.
 
-Hexen II's own game code has 34 such tests: 25 in Praevus, the others in Death's horse, the
-hydra, the tornado, the mezzoman's reflection, pushable objects, the Pentacles and ordered
+Hexen II's own game code has 34 such tests: 25 in the Praevus boss, the others in Death's horse,
+the hydra, the tornado, the mezzoman's reflection, pushable objects, the Pentacles and ordered
 counters.
 
 This compiler tests all three components, as `!vector` does, and prints a warning at each place:
@@ -102,49 +112,44 @@ This compiler tests all three components, as `!vector` does, and prints a warnin
 object.hc(352) : warning : this vector condition tests x, y and z: Raven's HCC tested only x
 ```
 
-Code without a vector condition compiles to the same instructions as before. `-noifvecfix` tests only x, as
-Raven's HCC did. To keep the meaning the same under every compiler, write the test as
-`if (self.velocity != '0 0 0')`.
+Code without a vector condition compiles to the same instructions as with Raven's HCC.
+`-noifvecfix` tests only x, as Raven's HCC did. To get the same result under any compiler, write
+the test as `if (self.velocity != '0 0 0')`.
 
 ### Parameters survive a nested call (a Raven HCC bug)
 
-On each call the engine saves the function's parameters and locals, and restores them when the
-call returns, so a function can be called again while it is running. Raven's HCC ended that
-range at the last local declaration, so in a function with no locals the parameters weren't
-saved: after a nested call back into the same function, they held the inner call's values. This
-compiler always saves them. jsHexen2 Progs has 105 such functions, `AddMultDamg` among them.
+On each call the engine saves a function's parameters and locals (its saved range), and restores
+them when the call returns, so a function can be called again while it is running. Raven's HCC
+ended the saved range at the last local declaration, so in a function with no locals the
+parameters weren't saved: after a nested call back into the same function, they held the inner
+call's values. This compiler always saves them. jsHexen2 Progs has 105 such functions,
+`AddMultDamg` among them.
 
 Only the size of the saved range changes; the instructions are the same, and there is no switch
 for it.
 
-### A progs too big for the format stops the build
+### Locals declared with a value
 
-A progs that needs more than 65,536 globals cannot be addressed by any engine. Raven's HCC wrote
-it anyway and reported success; this one stops with an error:
+A local declared with a value, such as `float n = 4;`, gets a warning. HCC stores the value in the
+progs, and no code assigns it. A call normally starts with that value anyway, because the engine
+restores a function's locals when it returns, but a nested call into the same function starts
+with the outer call's current value. Other compilers assign it on every call. Assign it in the
+function body instead:
 
 ```
-too many globals: 65537, the progs format allows 65536
+golem.hc(1291) : warning : local 'numSolid' gets its value when the progs loads, not from code: a nested call into this function starts with the outer call's value; assign it in the function body
 ```
 
 ### Smaller changes
 
 - `\\` in a string gives a backslash, which Raven's HCC rejected. Message text can then use
   the `\1` to `\4` lettering escapes of Shanjaq's uHexen2 and jsHexen2, written `"\\1"`.
-- A function parameter of a field type, such as `.float fld`, holds the field passed to it. Raven's HCC also gave it a field of its own: an unused slot on every entity, and a
-  field name in the progs that other compilers don't write. A save then failed the save checks
-  of engines that compare these names, such as jsHexen2's, when the progs was rebuilt with
-  another compiler. The compiled code is unchanged.
-- A local declared with a value, such as `float n = 4;`, gets a warning. HCC writes the value
-  into the progs; no code assigns it. A call usually starts with it anyway, because the engine
-  restores a function's locals when it returns, but a nested call into the same function starts
-  with whatever value the outer call left. Other compilers assign it on every call. Assign it in
-  the function body instead:
-
-  ```
-  golem.hc(1291) : warning : local 'numSolid' gets its value when the progs loads, not from code: a nested call into this function starts with the outer call's value; assign it in the function body
-  ```
-- Builds with Visual Studio 2022 (`build_vs2022.bat`).
-- `-quiet` also silences the line `-ot` prints about its temps.
+- A function parameter of a field type, such as `.float fld`, holds the field passed to it.
+  Raven's HCC also gave it a field of its own: an unused slot on every entity, and a field name in
+  the progs that other compilers don't write. Engines that compare field names when loading a
+  save, jsHexen2 among them, could then refuse saves after the progs was rebuilt with another
+  compiler. The compiled code is unchanged.
+- `-quiet` also silences the line `-ot` prints about intermediate results.
 
 ## Usage
 
@@ -156,12 +161,15 @@ cd portals
 hcc -ot -name progs.src
 ```
 
+It compiles HexenC as Raven's HCC defines it. Extensions that FTEQCC adds, such as the
+preprocessor (`#define`, `#ifdef`, `#include`), `for` loops, `?:` and `%`, are not supported.
+
 | Option | Effect |
 |---|---|
 | `-name <file>` | The `.src` file to compile (default `progs.src`). |
 | `-src <folder>` | Read the `.src` and `.hc` files from this folder. |
 | `-ot` | Share globals between intermediate results (see above). |
-| `-noretfix` | Let a later call overwrite an unused result, as Raven's HCC did. |
+| `-noretfix` | In an expression with two calls, let the later call overwrite the earlier result, as Raven's HCC did. |
 | `-noifvecfix` | Test only x in `if (vector)` and the other vector conditions, as Raven's HCC did. |
 | `-oi` | Share immediates (constants) with named constants of the same value. |
 | `-on` | Write a smaller name table: locals and unsaved globals get no names. |
