@@ -3,7 +3,7 @@
 # jsHexen2 HexenC Compiler
 
 ![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)
-![HCC](https://img.shields.io/badge/hcc-1.0.0-orange.svg)
+![HCC](https://img.shields.io/badge/hcc-1.0.1-orange.svg)
 ![Base](https://img.shields.io/badge/base-Raven_HCC-8B0000.svg)
 
 > [!TIP]
