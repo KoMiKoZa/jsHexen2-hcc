@@ -197,16 +197,16 @@ compiler stores each string's own text.
 
 ### Code written for FTEQCC (`-fte`)
 
-With `-fte`, HCC also accepts the FTEQCC syntax that Hexen II mods use, so a mod written for FTEQCC
-compiles without edits:
+With `-fte`, HCC also accepts the FTEQCC syntax that Hexen II mods use, so many mods written for
+FTEQCC compile without edits. The table below shows what it accepts.
 
 ```
 hcc -fte -ot -name progs.src -o progs.dat
 ```
 
-`-o` is there because a `progs.src` written for FTEQCC often names a path on its author's machine.
-`progdefs.h` and `files.dat` are still written to the current folder. Without `-fte`, HCC compiles
-exactly as before.
+`-o` writes the progs to the file you name, whatever path `progs.src` gives. `progdefs.h` and
+`files.dat` are still written to the current folder. Without `-fte`, HCC compiles HexenC as Raven's
+HCC defines it, with only the string fix above and the changes under Smaller changes.
 
 | FTEQCC code | Meaning |
 |---|---|
@@ -215,37 +215,35 @@ exactly as before.
 | `i++`, `++i`, `i--`, `--i` | add or subtract 1; the postfix form gives the old value |
 | `local float n = a - b;` | the value is assigned by code on every call |
 | a local or parameter named like a global | a new variable that hides the global |
-| `-x`, `+x`, `a-1`, `float k = -.5;` | unary minus and plus; `a-1` is a subtraction; `-K` uses the value `K` is declared with, as a global declared with a value is a constant |
+| `-x`, `+x`, `a-1`, `float k = -.5;` | unary minus and plus; `a-1` is a subtraction; `-K` uses the value a global `K` was declared with |
 | `v / f`, `v /= f`, `ent.v *= f` | a vector divided or multiplied by a float |
 | `v = 0` | a float assigned to a vector sets all three components |
 | `[x, y, z]` | a vector made of any three float expressions |
 | `a && b` with entities, strings or functions | each value tested as it is |
-| `a (+) b` as a value | the new value of `a`, not `b`; for an entity field such as `self.flags (+) b`, still `b` |
+| `a (+) b` used in an expression | the new value of `a` (for an entity field such as `self.flags (+) b`, the value of `b`) |
 | `(a, b)` and `a = 1, b = 2;` | the comma operator |
 | `void() f { ... }`, `void() f [frames] { ... }`, `void f(float x) = [frames] { ... }` | function bodies without `=` or with `=` before the frames |
 | `f = { ... }` without `;`, a stray `;`, an empty block `{ }` | accepted |
 | `nosave float x;`, `const float x = 1;` | `nosave` keeps a global out of saves; `const` changes nothing |
 | `float x = 1;` twice with the same value, `{ 1, 2, 3, }` | accepted |
-| `$frame1\|\|x`, `10000000000` | a frame name ends at `\|`; a large number keeps its value |
+| a large number such as `10000000000` | keeps its value |
 | a builtin called with extra arguments, a function with too few | allowed, with a warning |
-| `[++ 27 .. 18]` | a cycle that counts down, with a warning; write `[-- 27 .. 18]` |
+| `[++ 27 .. 18]` | a cycle that counts down; HCC prints a warning, and you can write `[-- 27 .. 18]` instead |
 
-Arguments after the second are stored after the last one is evaluated, as FTEQCC does, so a call in
-a later argument can't overwrite them.
+With `-fte`, a call used as an argument can't overwrite the arguments already stored.
 
 FTEQCC's preprocessor (`#define`, `#ifdef`, `#include`), `?:`, `%`, integer types, classes and
 pointers aren't supported.
 
-Everything else keeps its meaning from Raven's HCC: `x (-) BITS` on a global clears the bits,
-`$framesave` and `$framerestore` number frames as Raven's tools do, and each component of a vector
-field inside a `.union` has its own offset.
+Two things keep Raven's meaning under `-fte`: `x (-) BITS` on a global clears the bits, and
+`$framesave` and `$framerestore` number frames as Raven's tools do.
 
 Storm Over Thyrion's source compiles unchanged with `-fte`.
 
 ### Smaller changes
 
 - A file that ends inside a `//` or `/* */` comment, with no newline after it, compiles. Raven's
-  HCC read the comment's last `/` as code, or read past the end of the file.
+  HCC failed on it.
 - The compiler holds up to 524,288 statements and 65,536 definitions; Storm Over Thyrion needs
   about 135,000 statements. A progs that outgrows any of the compiler's tables stops with an error;
   Raven's HCC crashed or wrote a broken file.

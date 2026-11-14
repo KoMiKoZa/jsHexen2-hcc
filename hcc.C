@@ -778,7 +778,7 @@ void main(int argc, char **argv)
 
 	if(MS_CheckParm("-?") || MS_CheckParm("-help"))
 	{
-		// [2026-11-14] Komi - the same options and wording as the README's table
+		// [2026-11-14] Komi - every option the README's table lists
 		printf(" -name <file>     : The .src file to compile (default progs.src)\n");
 		printf(" -src <folder>    : Read the .src and .hc files from this folder\n");
 		printf(" -o <file>        : Write the progs to this file, not the one progs.src names\n");
