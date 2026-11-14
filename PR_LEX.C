@@ -53,8 +53,11 @@ static void ClearFrameMacros(void);
 // PUBLIC DATA DEFINITIONS -------------------------------------------------
 
 int lx_SourceLine;
+int hcc_Fte;
 
 // PRIVATE DATA DEFINITIONS ------------------------------------------------
+
+static qboolean AfterOperand; // the previous token ends an operand (-fte)
 
 static char FrameMacroNames[MAX_FRAME_DEFS][24];
 static int FrameMacroValues[MAX_FRAME_DEFS];
@@ -216,7 +219,7 @@ static void LexString(void)
 			else if (c == '"')
 				c = '"';
 			else if (c == '\\')
-				c = '\\';	// [2026-11-13 v0.9.8] Komi - a backslash, e.g. "\\1" for the \1 charset escape
+				c = '\\';	// [2026-11-13] Komi - a backslash, e.g. "\\1" for the \1 charset escape
 			else
 				MS_ParseError("unknown escape char");
 		}
@@ -321,6 +324,12 @@ static float LexNumber(void)
 		return (float)atof(pr_token);
 	}
 	*buffer = 0;
+	// [2026-11-14] Komi - -fte: read as a float, so 10000000000 doesn't overflow
+	// to 1410065408 as it does in HCC
+	if(hcc_Fte)
+	{
+		return (float)atof(pr_token);
+	}
 	return neg ? (float)-intNumber : (float)intNumber;
 }
 
@@ -617,7 +626,9 @@ static void LexPunctuation(void)
 			pr_tokenclass = TK_DEC;
 			return;
 		}
-		if(ASCIIToChrCode[*pr_file_p] == CHR_NUMBER)
+		// [2026-11-14] Komi - -fte: "a-1" is a subtraction, as in FTEQCC
+		if(ASCIIToChrCode[*pr_file_p] == CHR_NUMBER
+			&& !(hcc_Fte && AfterOperand))
 		{
 			pr_file_p--;
 			pr_token_type = tt_immediate;
@@ -663,6 +674,12 @@ static void LexWhitespace(void)
 			{
 				pr_file_p++;
 			}
+			// [2026-11-14] Komi - a // comment on the file's last line,
+			// with no newline after it, ends the file; HCC read on past its end
+			if(*pr_file_p == 0)
+			{
+				return;
+			}
 			NewLine();
 			pr_file_p++;
 			continue;
@@ -677,7 +694,10 @@ static void LexWhitespace(void)
 				{
 					NewLine();
 				}
-				if(pr_file_p[1] == 0)
+				// [2026-11-14] Komi - check for the end of the file at the
+				// current character: HCC stopped one early, so a file ending in "*/"
+				// left its "/" to be read as code
+				if(pr_file_p[0] == 0)
 				{ // EOF
 					return;
 				}
@@ -859,6 +879,16 @@ static void LexGrab(void)
 	}
 	else
 	{ // Look for a frame name macro
+		if(hcc_Fte)
+		{ // [2026-11-14] Komi - -fte: "$frame1||x" ends the name at "|", as in FTEQCC
+			char *end;
+
+			for(end = pr_token; ASCIIToChrCode[(unsigned char)*end] == CHR_LETTER
+				|| ASCIIToChrCode[(unsigned char)*end] == CHR_NUMBER; end++)
+				;
+			pr_file_p -= strlen(end);
+			*end = 0;
+		}
 		FindFrameMacro();
 	}
 }
@@ -876,6 +906,10 @@ void LX_Fetch(void)
 {
 	int c;
 
+	AfterOperand = pr_token_type == tt_immediate
+		|| (pr_token_type == tt_name && strcmp(pr_token, "return")
+			&& strcmp(pr_token, "case"))
+		|| pr_tokenclass == TK_RPAREN || pr_tokenclass == TK_RBRACKET;
 	pr_tokenclass = TK_NONE;
 
 	pr_token[0] = 0;

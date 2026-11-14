@@ -208,8 +208,9 @@ char *MS_Parse(char *data)
 		data++;
 		len++;
 		c = *data;
+		// [2026-11-14] Komi - -fte: a colon inside a word, as in an output path "c:\mod\progs.dat"
 		if(c == '{' || c == '}' || c == '(' || c == ')'
-			|| c == '\'' || c == ':')
+			|| c == '\'' || (c == ':' && !hcc_Fte))
 		{
 			break;
 		}

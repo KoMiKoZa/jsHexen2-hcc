@@ -61,6 +61,7 @@ static void ParseWhile(void);
 static void ParseUntil(void);
 static void ParseDo(void);
 static void ParseIf(void);
+static void ParseFor(void);
 static void ParseLocalDefs(void);
 static void ParseSwitch(void);
 static void ParseCase(void);
@@ -171,6 +172,8 @@ static void ParseStatement(scontext_t owner)
 	if(TK_CHECK(TK_LBRACE))
 	{
 		ContextLevel += EnterContext[owner];
+		// [2026-11-14] Komi - -fte: an empty block "{ }"
+		if(!(hcc_Fte && TK_CHECK(TK_RBRACE)))
 		do
 		{
 			ParseStatement(owner);
@@ -271,7 +274,8 @@ static void ParseStatement(scontext_t owner)
 	}
 	if(LX_Check("float") || LX_Check("vector")
 		|| LX_Check("entity") || LX_Check("string")
-		|| LX_Check("void"))
+		|| LX_Check("void")
+		|| (hcc_Fte && (LX_Check("const") || LX_Check("nosave"))))
 	{
 		ParseLocalDefs();
 		StatementIndex--;
@@ -283,8 +287,20 @@ static void ParseStatement(scontext_t owner)
 		StatementIndex--;
 		return;
 	}
+	if(hcc_Fte && LX_CheckFetch("for"))
+	{
+		ParseFor();
+		StatementIndex--;
+		return;
+	}
 
 	EX_Expression(TOP_PRIORITY);
+	// [2026-11-14] Komi - -fte: "a = 1, b = 2;" runs both, as in FTEQCC
+	while(hcc_Fte && TK_CHECK(TK_COMMA))
+	{
+		CO_ClearReturns();
+		EX_Expression(TOP_PRIORITY);
+	}
 	LX_Require(";");
 	CO_ClearReturns();
 	StatementIndex--;
@@ -454,8 +470,12 @@ static void ParseIf(void)
 	def_t *e;
 	dstatement_t *patch1, *patch2;
 	int ifOpcode;
+	qboolean negate;
 
-	if(LX_CheckFetch("not"))
+	// [2026-11-14] Komi - -fte: FTEQCC reads "if !(x)" as "if (!(x))", with
+	// the ! of x's type: for a string, NOT_S makes an empty string count as false
+	negate = hcc_Fte && TK_CHECK(TK_NOT);
+	if(!negate && LX_CheckFetch("not"))
 	{
 		ifOpcode = OP_IF;
 	}
@@ -466,6 +486,10 @@ static void ParseIf(void)
 
 	LX_Require("(");
 	e = EX_Expression(TOP_PRIORITY);
+	if(negate)
+	{
+		e = EX_Not(e);
+	}
 	e = Condition(e, &ifOpcode);
 	LX_Require(")");
 
@@ -490,9 +514,95 @@ static void ParseIf(void)
 
 //==========================================================================
 //
+// ParseFor
+//
+// [2026-11-14] Komi - -fte: for (start; condition; step) statement.
+// The step is parsed before the statement but runs after it, so it is placed
+// between the test and the statement and jumped over on the way in:
+//
+//   start
+//   test:  IFNOT condition, end
+//          GOTO body
+//   step:  step
+//          GOTO test
+//   body:  statement
+//          GOTO step        (continue jumps to step, break to end)
+//   end:
+//
+//==========================================================================
+
+static void ParseFor(void)
+{
+	def_t *e;
+	def_t tempDef;
+	int ifOpcode;
+	int test, exitJump, bodyJump, step;
+
+	memset(&tempDef, 0, sizeof(tempDef));
+	LX_Require("(");
+	if(LX_CheckFetch("local") || LX_Check("float") || LX_Check("vector")
+		|| LX_Check("entity") || LX_Check("string"))
+	{ // A declaration, which reads its own ";"
+		ParseLocalDefs();
+	}
+	else
+	{
+		if(!TK_TEST(TK_SEMICOLON))
+		{
+			do
+			{
+				EX_Expression(TOP_PRIORITY);
+			} while(TK_CHECK(TK_COMMA));
+		}
+		LX_Require(";");
+	}
+	CO_ClearReturns();
+
+	test = numstatements;
+	exitJump = -1;
+	if(!TK_TEST(TK_SEMICOLON))
+	{
+		e = EX_Expression(TOP_PRIORITY);
+		ifOpcode = OP_IFNOT;
+		e = Condition(e, &ifOpcode);
+		exitJump = numstatements;
+		CO_GenCode(&pr_opcodes[ifOpcode], e, 0);
+	}
+	LX_Require(";");
+	CO_ClearReturns();
+
+	bodyJump = numstatements;
+	CO_GenCode(&pr_opcodes[OP_GOTO], 0, 0);
+	step = numstatements;
+	if(!TK_TEST(TK_RPAREN))
+	{
+		do
+		{
+			EX_Expression(TOP_PRIORITY);
+		} while(TK_CHECK(TK_COMMA));
+	}
+	LX_Require(")");
+	CO_ClearReturns();
+	tempDef.ofs = test - numstatements;
+	CO_GenCode(&pr_opcodes[OP_GOTO], &tempDef, 0);
+	statements[bodyJump].a = numstatements - bodyJump;
+
+	ParseStatement(SCONTEXT_WHILE);
+	tempDef.ofs = step - numstatements;
+	CO_GenCode(&pr_opcodes[OP_GOTO], &tempDef, 0);
+	if(exitJump >= 0)
+	{
+		statements[exitJump].b = numstatements - exitJump;
+	}
+	FixContinues(step);
+	FixBreaks();
+}
+
+//==========================================================================
+//
 // Condition
 //
-// [2026-11-13 v0.9.8] Komi - IF and IFNOT test a single float, so HCC's
+// [2026-11-13] Komi - IF and IFNOT test a single float, so HCC's
 // if (v), while (v) and the other vector conditions tested only v_x: a
 // vector along y or z counted as zero. Now NOT_V tests all three, as !v
 // always did, and the jump is reversed to match. -noifvecfix keeps HCC's
@@ -520,7 +630,7 @@ static def_t *Condition(def_t *e, int *ifOpcode)
 
 static void ParseLocalDefs(void)
 {
-	// [2026-11-12 v0.9.8] Komi - -ot: temps made so far get their registers
+	// [2026-11-12] Komi - -ot: temps made so far get their registers
 	// here, before these locals, so the ones that keep a register of their own
 	// stay inside the saved locals range.
 	CO_TempFlush();
@@ -677,7 +787,7 @@ static void AddCase(etype_t type, def_t *value1, def_t *value2,
 	{
 		MS_ParseError("case overflow");
 	}
-	// [2026-11-12 v0.9.8] Komi - -ot: the case table reads these at the end
+	// [2026-11-12] Komi - -ot: the case table reads these at the end
 	// of the switch, so a computed case value keeps its own register.
 	CO_PinTemp(value1);
 	CO_PinTemp(value2);

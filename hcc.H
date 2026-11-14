@@ -21,10 +21,13 @@
 
 // MACROS ------------------------------------------------------------------
 
+// [2026-11-14] Komi - These are the compiler's own table sizes, not limits
+// of the progs format; Storm Over Thyrion needs about 132,000 statements. A
+// progs that outgrows one stops the build with an error.
 #define MAX_STRINGS 500000
-#define MAX_GLOBALS 16384
+#define MAX_GLOBALS 65536
 #define MAX_FIELDS 1024
-#define MAX_STATEMENTS 65536*2    // new limit is 2147483647
+#define MAX_STATEMENTS (65536*8)
 #define MAX_FUNCTIONS 8192
 #define MAX_SOUNDS 1024
 #define MAX_MODELS 1024
@@ -33,7 +36,7 @@
 #define MAX_ERRORS 10
 #define MAX_NAME 64
 #define MAX_REGS 65536
-// [2026-11-12 v0.9.8] Komi - Room past MAX_REGS so one allocation (at most
+// [2026-11-12] Komi - Room past MAX_REGS so one allocation (at most
 // a 1024-element vector array) can't overrun before CO_CheckRegisters fails.
 #define MAX_REGS_ALLOC (MAX_REGS+4096)
 #define MS_HASH_TABLE_SIZE 9973
@@ -78,13 +81,14 @@ typedef struct def_s
 	int initialized; // 1 when a declaration included "= immediate"
 	int referenceCount;
 	struct def_s *parentVector;
-	// [2026-11-12 v0.9.8] Komi - -ot: >0 while ofs holds a provisional temp
+	// [2026-11-12] Komi - -ot: >0 while ofs holds a provisional temp
 	// index (index+1), -1 once the temp's pooled lifetime is over.
 	int tempIndex;
-	// [2026-11-12 v0.9.8] Komi - a call's or random()'s result in OFS_RETURN:
+	// [2026-11-12] Komi - a call's or random()'s result in OFS_RETURN:
 	// index+1 of the statement that wrote it. 0 for other defs, and once the
 	// result is kept in a temp.
 	int retStatement;
+	int nosave; // [2026-11-14] Komi - -fte: declared "nosave", never saved
 } def_t;
 
 typedef union eval_s
@@ -185,6 +189,7 @@ extern int hcc_OptimizeNameTable;
 extern int hcc_OptimizeTemps;
 extern int hcc_KeepReturnBug;
 extern int hcc_KeepIfVectorBug;
+extern int hcc_Fte;
 extern qboolean hcc_WarningsActive;
 extern qboolean hcc_ShowUnrefFuncs;
 
@@ -211,6 +216,7 @@ void CO_ParseDefs(void);
 def_t *PR_GetDef(type_t *type, char *name, def_t *scope,
 	qboolean allocate);
 void CO_CheckRegisters(void);
+void CO_CheckStatements(void);
 void CO_TempFlush(void);
 void CO_PinTemp(def_t *d);
 void CO_TempEndProgram(qboolean quiet);
@@ -224,6 +230,7 @@ extern int ex_FunctionCallCount;
 
 void EX_Init(void);
 def_t *EX_Expression(int priority);
+def_t *EX_Not(def_t *e);
 
 // stmt.c
 

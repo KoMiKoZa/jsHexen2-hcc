@@ -32,13 +32,15 @@ cd portals
 hcc -ot -name progs.src
 ```
 
-It compiles HexenC as Raven's HCC defines it. Extensions that FTEQCC adds, such as the
-preprocessor (`#define`, `#ifdef`, `#include`), `for` loops, `?:` and `%`, are not supported.
+It compiles HexenC as Raven's HCC defines it. For a mod written for FTEQCC, add `-fte` (see
+[Code written for FTEQCC](#code-written-for-fteqcc-fte)).
 
 | Option | Effect |
 |---|---|
 | `-name <file>` | The `.src` file to compile (default `progs.src`). |
 | `-src <folder>` | Read the `.src` and `.hc` files from this folder. |
+| `-o <file>` | Write the progs to this file instead of the one named in `progs.src`. |
+| `-fte` | Also accept code written for FTEQCC. |
 | `-ot` | Share globals between intermediate results (see below). |
 | `-noretfix` | In an expression with two calls, let the later call overwrite the earlier result, as Raven's HCC did. |
 | `-noifvecfix` | Test only x in `if (vector)` and the other vector conditions, as Raven's HCC did. |
@@ -185,8 +187,68 @@ function body instead:
 golem.hc(1291) : warning : local 'numSolid' gets its value when the progs loads, not from code: a nested call into this function starts with the outer call's value; assign it in the function body
 ```
 
+### Global strings declared with a value (a Raven HCC bug)
+
+`string GREETING = "Hello";` didn't give `GREETING` the text "Hello". Raven's HCC stored the last
+string literal it had read before that line, or nothing. Raven's own game code never declares
+strings this way, so Hexen II wasn't affected, but a mod that does showed the wrong text. Arrays of
+strings declared with values, such as `string names[2] = {"a", "b"};`, had the same problem. This
+compiler stores each string's own text.
+
+### Code written for FTEQCC (`-fte`)
+
+With `-fte`, HCC also accepts the FTEQCC syntax that Hexen II mods use, so a mod written for FTEQCC
+compiles without edits:
+
+```
+hcc -fte -ot -name progs.src -o progs.dat
+```
+
+`-o` is there because a `progs.src` written for FTEQCC often names a path on its author's machine.
+Without `-fte`, HCC compiles exactly as before.
+
+| FTEQCC code | Meaning |
+|---|---|
+| `if !(x)` | `if not (x)`; for a string, an empty string counts as false |
+| `for (float i = 0; i < 3; i++)` | a loop; `continue` goes to the step |
+| `i++`, `++i`, `i--`, `--i` | add or subtract 1; the postfix form gives the old value |
+| `local float n = a - b;` | the value is assigned by code on every call |
+| a local or parameter named like a global | a new variable that hides the global |
+| `-x`, `+x`, `a-1` | unary minus and plus; `a-1` is a subtraction |
+| `v / f`, `v /= f`, `ent.v *= f` | a vector divided or multiplied by a float |
+| `v = 0` | a float assigned to a vector sets all three components |
+| `[x, y, z]` | a vector made of any three float expressions |
+| `a && b` with entities, strings or functions | each value tested as it is |
+| `a (+) b` as a value | the new value of `a`, not `b` |
+| `(a, b)` and `a = 1, b = 2;` | the comma operator |
+| `void() f { ... }`, `void f(float x) = [frames] { ... }` | function bodies without `=` or with `=` before the frames |
+| `f = { ... }` without `;`, a stray `;`, an empty block `{ }` | accepted |
+| `nosave float x;`, `const float x = 1;` | `nosave` keeps a global out of saves; `const` changes nothing |
+| `float x = 1;` twice with the same value, `{ 1, 2, 3, }` | accepted |
+| `$frame1\|\|x`, `.15`, `10000000000` | a frame name ends at `\|`; numbers as FTEQCC reads them |
+| a builtin called with extra arguments, a function with too few | allowed, with a warning |
+| `[++ 27 .. 18]` | a cycle that counts down, with a warning; write `[-- 27 .. 18]` |
+
+Arguments after the second are stored after the last one is evaluated, as FTEQCC does, so a call in
+a later argument can't overwrite them.
+
+FTEQCC's preprocessor (`#define`, `#ifdef`, `#include`), `?:`, `%`, integer types, classes and
+pointers aren't supported.
+
+FTEQCC's Hexen II mode has two bugs that `-fte` doesn't copy: `serverflags (-) X` on a global sets
+the bits instead of clearing them, and frames between `$framesave` and `$framerestore` come out one
+too high. The components of a vector field inside a `.union` also get their right offsets.
+
+Storm Over Thyrion's source compiles unchanged with `-fte`. Its functions do the same as in an
+FTEQCC build, except where FTEQCC's bugs above made them differ.
+
 ### Smaller changes
 
+- A file that ends inside a `//` or `/* */` comment, with no newline after it, compiles. Raven's
+  HCC read the comment's last `/` as code, or read past the end of the file.
+- The compiler holds up to 524,288 statements and 65,536 definitions; Storm Over Thyrion needs
+  about 135,000 statements. A progs that outgrows any of the compiler's tables stops with an error;
+  Raven's HCC crashed or wrote a broken file.
 - `\\` in a string gives a backslash, which Raven's HCC rejected. Message text can then use
   the `\1` to `\4` lettering escapes of Shanjaq's uHexen2 and jsHexen2, written `"\\1"`.
 - A function parameter of a field type, such as `.float fld`, holds the field passed to it.

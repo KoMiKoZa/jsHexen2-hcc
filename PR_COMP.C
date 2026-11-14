@@ -53,6 +53,7 @@ static int GlobalOperands(int op);
 static int NewTemp(def_t *d, int statement, int size);
 static void TempBeginFunction(void);
 static void TempEndFunction(void);
+static void FteInitLocal(def_t *def, type_t *type);
 
 // EXTERNAL DATA DECLARATIONS ----------------------------------------------
 
@@ -344,6 +345,11 @@ qboolean CO_CompileFile(char *fileText, char *fileName)
 			}
 		}
 		pr_scope = NULL;
+		// [2026-11-14] Komi - -fte: a stray ";" between definitions, as after "void f() { };"
+		if(hcc_Fte && TK_CHECK(TK_SEMICOLON))
+		{
+			continue;
+		}
 		CO_ParseDefs();
 	}
 	return (pr_error_count == 0);
@@ -362,6 +368,7 @@ def_t *CO_GenCode(opcode_t *op, def_t *var_a, def_t *var_b)
 	dstatement_t *statement;
 	def_t *var_c;
 
+	CO_CheckStatements();
 	statement = &statements[numstatements];
 	numstatements++;
 
@@ -392,6 +399,13 @@ def_t *CO_GenCode(opcode_t *op, def_t *var_a, def_t *var_b)
 		if(op->tag < SPECIAL_ASSIGN_OP)
 		{ // Return right side operand for normal assigments.
 			statement->c = 0;
+			// [2026-11-14] Komi - -fte: "a (+) b" as a value is the new a, as in
+			// FTEQCC; HCC gave b, so "x = a (+) b" stored only the bits of b
+			if(hcc_Fte && (op == &pr_opcodes[OP_BITSET]
+				|| op == &pr_opcodes[OP_BITCLR]))
+			{
+				return var_b;
+			}
 			return var_a;
 		}
 		if(op->type_a != &def_pointer)
@@ -411,7 +425,7 @@ def_t *CO_GenCode(opcode_t *op, def_t *var_a, def_t *var_b)
 	var_c->type = op->type_c->type;
 
 	if(hcc_OptimizeTemps)
-	{ // [2026-11-12 v0.9.8] Komi - the register is assigned once the temp's lifetime is known
+	{ // [2026-11-12] Komi - the register is assigned once the temp's lifetime is known
 		var_c->ofs = NewTemp(var_c, statement-statements,
 			type_size[op->type_c->type->type]);
 		statement->c = var_c->ofs;
@@ -438,6 +452,7 @@ void CO_GenCodeDirect(opcode_t *op, def_t *var_a, def_t *var_b,
 {
 	dstatement_t *statement;
 
+	CO_CheckStatements();
 	statement = &statements[numstatements];
 	numstatements++;
 
@@ -465,7 +480,7 @@ void CO_GenCodeDirect(opcode_t *op, def_t *var_a, def_t *var_b,
 //
 // Overwritten return values
 //
-// [2026-11-12 v0.9.8] Komi - Every call and every random() leaves its
+// [2026-11-12] Komi - Every call and every random() leaves its
 // result in OFS_RETURN, and HCC used it from there. When a second call ran
 // before the first result was used, as in f() + g(), the first result was
 // lost and the second was read in its place. Now each result is tracked
@@ -623,7 +638,7 @@ void CO_ClearReturns(void)
 //
 // CO_CheckRegisters
 //
-// [2026-11-12 v0.9.8] Komi - Statement operands are 16 bits, so a progs
+// [2026-11-12] Komi - Statement operands are 16 bits, so a progs
 // with more globals than that cannot be addressed. Fail instead of writing
 // a progs.dat that no engine can run.
 //
@@ -640,9 +655,27 @@ void CO_CheckRegisters(void)
 
 //==========================================================================
 //
+// CO_CheckStatements
+//
+// [2026-11-14] Komi - The statement tables have a fixed size. Raven's
+// HCC wrote past their end and crashed, or worse, on a progs that needed more.
+//
+//==========================================================================
+
+void CO_CheckStatements(void)
+{
+	if(numstatements >= MAX_STATEMENTS)
+	{
+		MS_Error("too many statements: this compiler holds %d",
+			MAX_STATEMENTS);
+	}
+}
+
+//==========================================================================
+//
 // Temporary register allocation (-ot)
 //
-// [2026-11-12 v0.9.8] Komi - HCC gives every expression result its own
+// [2026-11-12] Komi - HCC gives every expression result its own
 // global and never reuses it. With -ot the code is generated exactly as
 // before, and only the registers of the temps change:
 //
@@ -697,7 +730,7 @@ static int MaxSpans;
 static int TotalOwnTemps;
 static int TotalPooledTemps;
 
-// [2026-11-12 v0.9.8] Komi - operands of each opcode that hold a global (the
+// [2026-11-12] Komi - operands of each opcode that hold a global (the
 // rest are jump offsets)
 static int GlobalOperands(int op)
 {
@@ -824,7 +857,7 @@ static void PatchOperand(short *operand, int s, int bit)
 //
 // CO_TempFlush
 //
-// [2026-11-12 v0.9.8] Komi - Assigns registers to the temps made since the
+// [2026-11-12] Komi - Assigns registers to the temps made since the
 // last flush. Called before each local declaration (no temp is live there)
 // and at function end.
 //
@@ -898,7 +931,7 @@ void CO_TempFlush(void)
 	{
 		t = &Temps[i];
 		if(t->ofs >= 0)
-		{ // [2026-11-12 v0.9.8] Komi - case values are still referenced by their def
+		{ // [2026-11-12] Komi - case values are still referenced by their def
 			t->def->ofs = t->ofs;
 			t->def->tempIndex = 0;
 		}
@@ -919,7 +952,7 @@ static void TempBeginFunction(void)
 	SegmentStart = FunctionStart = numstatements;
 }
 
-// [2026-11-12 v0.9.8] Komi - A jump into a pooled lifetime would read a cell
+// [2026-11-12] Komi - A jump into a pooled lifetime would read a cell
 // its def never wrote. HCC's grammar can't produce one; check anyway, once
 // all jumps are patched.
 static void TempEndFunction(void)
@@ -971,7 +1004,7 @@ static void TempEndFunction(void)
 //
 // CO_TempEndProgram
 //
-// [2026-11-12 v0.9.8] Komi - Places the pool after everything else, outside
+// [2026-11-12] Komi - Places the pool after everything else, outside
 // every function's locals. Two spare registers follow it: the engine copies
 // call arguments and return values three cells wide, so a float in the top
 // pool cell would otherwise read past the end of the globals.
@@ -1242,16 +1275,17 @@ static void ParseState(void)
 		frame2 = (int)pr_immediate._float;
 		s2 = CO_ParseImmediate();
 		LX_Fetch();
-		if(direction == TK_INC)
+		// [2026-11-14] Komi - -fte: the engine picks the direction from the two
+		// frames, so a cycle marked the wrong way compiles to the same code
+		if(direction == TK_INC ? frame1 > frame2 : frame1 < frame2)
 		{
-			if(frame1 > frame2)
+			if(!hcc_Fte)
 			{
 				MS_ParseError("bad frame order in state cycle");
 			}
-		}
-		else if(frame1 < frame2)
-		{
-			MS_ParseError("bad frame order in state cycle");
+			MS_ParseWarning("this cycle counts %s: write [%s %d .. %d]",
+				direction == TK_INC ? "down" : "up",
+				direction == TK_INC ? "--" : "++", frame1, frame2);
 		}
 		LX_Require("]");
 		if(weapon == true)
@@ -1327,7 +1361,7 @@ static function_t *ParseImmediateStatements(type_t *type)
 			MS_ParseError("bad parm order");
 		}
 	}
-	// [2026-11-13 v0.9.8] Komi - The saved locals range ended at the last
+	// [2026-11-13] Komi - The saved locals range ended at the last
 	// local declaration, so a function with none saved none of its
 	// parameters: re-entered through a nested call, it came back with the
 	// inner call's values in them. No temp exists yet, so temps stay on the
@@ -1430,7 +1464,10 @@ def_t *PR_GetDef(type_t *type, char *name, def_t *scope,
 		}
 	}
 
-	if(scope != NULL)
+	// [2026-11-14] Komi - -fte: a parameter or local declared with a global's
+	// name is a new variable that hides the global, as in FTEQCC. Without -fte HCC
+	// finds the global here and the "local" is that global.
+	if(scope != NULL && !(hcc_Fte && allocate))
 	{
 		index = MS_Hash(name);
 		for(cell = HashTable[index]; cell != NULL; cell = cell->next)
@@ -1497,7 +1534,7 @@ def_t *PR_GetDef(type_t *type, char *name, def_t *scope,
 		CO_CheckRegisters();
 	}
 
-	// [2026-11-13 v0.9.8] Komi - A field-typed parameter (".float fld") holds the field
+	// [2026-11-13] Komi - A field-typed parameter (".float fld") holds the field
 	// passed in; only a global declaration makes a field. Raven's HCC gave each one
 	// entity space and a field def of its own.
 	if(type->type == ev_field && scope == NULL)
@@ -1523,6 +1560,33 @@ def_t *PR_GetDef(type_t *type, char *name, def_t *scope,
 
 //==========================================================================
 //
+// FteInitLocal
+//
+// [2026-11-14] Komi - -fte: "float n = expression;" in a function
+// stores the value where the local is declared, on every call.
+//
+//==========================================================================
+
+static void FteInitLocal(def_t *def, type_t *type)
+{
+	static const int storeOps[8] =
+	{
+		0, OP_STORE_S, OP_STORE_F, OP_STORE_V,
+		OP_STORE_ENT, OP_STORE_FLD, OP_STORE_FNC, 0
+	};
+	def_t *e;
+
+	e = EX_Expression(TOP_PRIORITY);
+	if(e == NULL || e->type != type || !storeOps[type->type])
+	{
+		MS_ParseError("type mismatch for = in the declaration of %s",
+			def->name);
+	}
+	CO_GenCode(&pr_opcodes[storeOps[type->type]], e, def);
+}
+
+//==========================================================================
+//
 // CO_ParseDefs
 //
 //==========================================================================
@@ -1535,6 +1599,22 @@ void CO_ParseDefs(void)
 	type_t *type;
 	int elementCount;
 	gofs_t offset;
+	qboolean nosave;
+
+	// [2026-11-14] Komi - -fte: "nosave" keeps a global out of saves; "const" is
+	// accepted and changes nothing, since an initialized global is already a constant here
+	nosave = false;
+	while(hcc_Fte)
+	{
+		if(LX_CheckFetch("nosave"))
+		{
+			nosave = true;
+		}
+		else if(!LX_CheckFetch("const"))
+		{
+			break;
+		}
+	}
 
 	type = PR_ParseType();
 
@@ -1571,10 +1651,43 @@ void CO_ParseDefs(void)
 		{
 			def = PR_GetDef(type, name, pr_scope, true);
 		}
+		if(nosave)
+		{
+			def->nosave = true;
+		}
+
+		// [2026-11-14] Komi - -fte: "void() f { ... }" without "=", as in FTEQCC
+		if(hcc_Fte && type->type == ev_function && elementCount == 0
+			&& (TK_TEST(TK_LBRACE) || TK_TEST(TK_LBRACKET)))
+		{
+			ParseFunctionDef(def, type);
+			if(!TK_TEST(TK_SEMICOLON) && !TK_TEST(TK_COMMA))
+			{
+				return;
+			}
+			continue;
+		}
 
 		// Check for initialization
 		if(TK_CHECK(TK_ASSIGN))
 		{
+			if(hcc_Fte && pr_scope != NULL && elementCount == 0)
+			{ // [2026-11-14] Komi - -fte: a local's initializer is code that runs on every call, as in FTEQCC
+				FteInitLocal(def, type);
+				continue;
+			}
+			if(def->initialized && hcc_Fte && elementCount == 0
+				&& type->type != ev_function && pr_token_type == tt_immediate
+				&& pr_immediate_type == type
+				&& (type->type == ev_string
+					? !strcmp(G_STRING(def->ofs), pr_immediate_string)
+					: !memcmp(pr_globals+def->ofs, &pr_immediate,
+						4*type_size[type->type])))
+			{ // [2026-11-14] Komi - -fte: the same constant defined again with the same value
+				MS_ParseWarning("'%s' defined again with the same value", name);
+				LX_Fetch();
+				continue;
+			}
 			if(def->initialized)
 			{
 				MS_ParseError("'%s' : redefinition", name);
@@ -1583,7 +1696,7 @@ void CO_ParseDefs(void)
 			{
 				MS_ParseError("fields cannot be initialized");
 			}
-			// [2026-11-13 v0.9.8] Komi - A local's value is written into the
+			// [2026-11-13] Komi - A local's value is written into the
 			// progs, not assigned by code. The engine restores a function's
 			// locals when it returns, so a call usually starts with this
 			// value, but a call made while the function is already running
@@ -1613,12 +1726,17 @@ void CO_ParseDefs(void)
 					{
 						MS_ParseError("wrong immediate type for %s", name);
 					}
+					if(type->type == ev_string)
+					{ // [2026-11-14] Komi - see the single value below
+						pr_immediate.string = CopyString(pr_immediate_string);
+					}
 					memcpy(pr_globals+offset, &pr_immediate,
 						4*type_size[pr_immediate_type->type]);
 					offset += type_size[pr_immediate_type->type];
 					i++;
 					LX_Fetch();
-				} while(TK_CHECK(TK_COMMA));
+					// [2026-11-14] Komi - -fte: a comma may follow the last value
+				} while(TK_CHECK(TK_COMMA) && !(hcc_Fte && TK_TEST(TK_RBRACE)));
 				LX_Require("}");
 				if(i != elementCount)
 				{
@@ -1631,11 +1749,22 @@ void CO_ParseDefs(void)
 			else if(type->type == ev_function)
 			{
 				ParseFunctionDef(def, type);
+				// [2026-11-14] Komi - -fte: "f = { ... }" may end without ";"
+				if(hcc_Fte && !TK_TEST(TK_SEMICOLON) && !TK_TEST(TK_COMMA))
+				{
+					return;
+				}
 				continue;
 			}
 			else if(pr_immediate_type != type)
 			{
 				MS_ParseError("wrong immediate type for %s", name);
+			}
+			if(type->type == ev_string)
+			{ // [2026-11-14] Komi - the lexer leaves a string's text in
+				// pr_immediate_string; HCC copied a stale pr_immediate.string,
+				// so "string s = "text";" got the last literal parsed before it
+				pr_immediate.string = CopyString(pr_immediate_string);
 			}
 			def->initialized = 1;
 			memcpy(pr_globals+def->ofs, &pr_immediate,
@@ -1649,6 +1778,12 @@ void CO_ParseDefs(void)
 			def->initialized = 1;
 		}
 	} while(TK_CHECK(TK_COMMA));
+	// [2026-11-14] Komi - -fte: FTEQCC warns about a missing ";" here and goes on
+	if(hcc_Fte && !TK_TEST(TK_SEMICOLON))
+	{
+		MS_ParseWarning("missing ; at the end of a definition");
+		return;
+	}
 	LX_Require(";");
 }
 
@@ -1824,6 +1959,12 @@ static void ParseUnion(void)
 	{
 		if(LX_CheckFetch("struct"))
 		{
+			// [2026-11-14] Komi - -fte: FTEQCC reads "struct struct {" as one struct
+			while(hcc_Fte && LX_Check("struct"))
+			{
+				MS_ParseWarning("\"struct\" repeated");
+				LX_Fetch();
+			}
 			pr.size_fields = startFieldOffset;
 			LX_Require("{");
 			do
@@ -1910,6 +2051,10 @@ static void ParseFunctionDef(def_t *def, type_t *type)
 	f->def = def;
 
 	// Fill in the dfunction
+	if(numfunctions >= MAX_FUNCTIONS)
+	{
+		MS_Error("too many functions: this compiler holds %d", MAX_FUNCTIONS);
+	}
 	df = &functions[numfunctions];
 	numfunctions++;
 	if(f->builtin)
@@ -1981,7 +2126,19 @@ static void ParseCStyleFunctionDef(char *funcName, type_t *type)
 
 	if(def->initialized)
 	{
+		// [2026-11-14] Komi - -fte: a prototype after the function's body
+		if(hcc_Fte && TK_TEST(TK_SEMICOLON))
+		{
+			LX_Fetch();
+			return;
+		}
 		MS_ParseError("%s redeclared", funcName);
+	}
+
+	// [2026-11-14] Komi - -fte: "void f(float a) = [frames] { ... }"
+	if(hcc_Fte && TK_TEST(TK_ASSIGN))
+	{
+		LX_Fetch();
 	}
 
 	if(TK_TEST(TK_LBRACE)
@@ -2002,6 +2159,10 @@ static void ParseCStyleFunctionDef(char *funcName, type_t *type)
 		def->initialized = 1;
 		G_FUNCTION(def->ofs) = numfunctions;
 		f->def = def;
+		if(numfunctions >= MAX_FUNCTIONS)
+		{
+			MS_Error("too many functions: this compiler holds %d", MAX_FUNCTIONS);
+		}
 		df = &functions[numfunctions];
 		numfunctions++;
 		if(f->builtin)
@@ -2027,6 +2188,10 @@ static void ParseCStyleFunctionDef(char *funcName, type_t *type)
 		{
 			LX_Require(";");
 		}
+	}
+	else if(hcc_Fte && !TK_TEST(TK_SEMICOLON))
+	{ // [2026-11-14] Komi - -fte: FTEQCC ends a prototype without ";" at the next definition
+		MS_ParseWarning("missing ; after the prototype of %s", funcIdent);
 	}
 	else
 	{

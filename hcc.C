@@ -124,6 +124,10 @@ int	CopyString (char *str)
 	}
 
 	old = strofs;
+	if(strofs+strlen(str)+1 > MAX_STRINGS)
+	{ // [2026-11-14] Komi - the string table has a fixed size
+		MS_Error("too many strings: this compiler holds %d bytes", MAX_STRINGS);
+	}
 	strcpy (strings+strofs, str);
 	strofs += strlen(str)+1;
 	return old;
@@ -227,20 +231,29 @@ void WriteData(int crc)
 	}
 	for(def = pr.def_head.next; def; def = def->next)
 	{
-		// [2026-11-13 v0.9.8] Komi - a field def only for a real field, not a field-typed
+		// [2026-11-13] Komi - a field def only for a real field, not a field-typed
 		// parameter (PR_GetDef no longer gives those entity space)
 		if(def->type->type == ev_field && def->scope == NULL)
 		{
+			if(numfielddefs >= MAX_FIELDS)
+			{
+				MS_Error("too many fields: this compiler holds %d", MAX_FIELDS);
+			}
 			dd = &fields[numfielddefs];
 			numfielddefs++;
 			dd->type = def->type->aux_type->type;
 			dd->s_name = strofs; // The name gets copied below
 			dd->ofs = G_INT(def->ofs);
 		}
+		if(numglobaldefs >= MAX_GLOBALS)
+		{ // [2026-11-14] Komi - the def tables have a fixed size
+			MS_Error("too many definitions: this compiler holds %d", MAX_GLOBALS);
+		}
 		dd = &globals[numglobaldefs];
 		numglobaldefs++;
 		dd->type = def->type->type;
 		if(!def->initialized
+			&& !def->nosave
 			&& def->type->type != ev_function
 			&& def->type->type != ev_field
 			&& def->scope == NULL)
@@ -770,6 +783,8 @@ void main(int argc, char **argv)
 		printf(" -ot              : Optimize Temps (reuse temp registers)\n");
 		printf(" -noretfix        : Let a later call overwrite an unused result, as HCC did\n");
 		printf(" -noifvecfix      : Test only x in if (vector) and the like, as HCC did\n");
+		printf(" -fte             : Also accept code written for FTEQCC\n");
+		printf(" -o <file>        : Write the progs to this file, not the one progs.src names\n");
 		printf(" -quiet           : Quiet mode\n");
 		printf(" -fileinfo        : Show object sizes per file\n");
 		printf(" -src <directory> : Specify source directory\n");
@@ -808,12 +823,19 @@ void main(int argc, char **argv)
 	sprintf(filename, "%s%s", sourcedir,infile);
 	MS_LoadFile(filename, (void *)&src);
 
+	hcc_Fte = MS_CheckParm("-fte");
 	src = MS_Parse(src);
 	if(!src)
 	{
 		MS_Error("No destination filename.  HCC -help for info.\n");
 	}
 	strcpy(destfile, ms_Token);
+	// [2026-11-14] Komi - a mod's progs.src can name a path on its author's machine
+	p = MS_CheckParm("-o");
+	if(p && p < argc-1)
+	{
+		strcpy(destfile, argv[p+1]);
+	}
 
 	BeginCompilation();
 

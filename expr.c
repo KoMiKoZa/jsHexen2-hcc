@@ -27,6 +27,13 @@ static def_t *ParseIntrinsicFunc(char *name);
 static void PrecacheSound(def_t *e, int ch);
 static void PrecacheModel(def_t *e, int ch);
 static void PrecacheFile(def_t *e, int ch);
+static def_t *MakeImmediate(type_t *type, float x, float y, float z);
+static def_t *Truth(def_t *e);
+static def_t *Reciprocal(def_t *e);
+static opcode_t *FteCoerce(opcode_t *first, def_t **e, def_t **e2);
+static def_t *AddressOf(def_t *e);
+static def_t *Increment(def_t *e, int tokenclass, qboolean postfix);
+static def_t *VectorConstructor(void);
 
 // EXTERNAL DATA DECLARATIONS ----------------------------------------------
 
@@ -100,6 +107,7 @@ void EX_Init(void)
 def_t *EX_Expression(int priority)
 {
 	opcode_t *op;
+	opcode_t *first;
 	def_t *e;
 	def_t *e2;
 	etype_t type_a;
@@ -120,6 +128,14 @@ def_t *EX_Expression(int priority)
 		if(priority == 1 && TK_CHECK(TK_LPAREN))
 		{
 			return ParseFunctionCall(e);
+		}
+
+		// [2026-11-14] Komi - -fte: "x++" and "x--"
+		if(priority == 1 && hcc_Fte && (TK_TEST(TK_INC) || TK_TEST(TK_DEC)))
+		{
+			e = Increment(e, pr_tokenclass, true);
+			LX_Fetch();
+			continue;
 		}
 
 		opIndex = TokenToOp[pr_tokenclass];
@@ -184,6 +200,8 @@ def_t *EX_Expression(int priority)
 
 			// Find the opcode that matches the types
 			tag = op->tag;
+			first = op;
+retry:
 			while(type_a != op->type_a->type->type
 				|| type_b != op->type_b->type->type
 				|| (type_c != ev_void && type_c != op->type_c->type->type))
@@ -192,11 +210,25 @@ def_t *EX_Expression(int priority)
 				if(tag != op->tag)
 				{
 					op--;
-					MS_ParseError("type mismatch for %s", op->name);
+					break;
 				}
 			}
-			if(type_a == ev_pointer && type_b != e->type->aux_type->type)
+			if(type_a != op->type_a->type->type
+				|| type_b != op->type_b->type->type
+				|| (type_c != ev_void && type_c != op->type_c->type->type)
+				|| (type_a == ev_pointer && type_b != e->type->aux_type->type
+					&& !(hcc_Fte && op == &pr_opcodes[OP_MULSTOREP_V])))
 			{
+				// [2026-11-14] Komi - -fte: retry with FTEQCC's conversion
+				if(hcc_Fte && type_c == ev_void
+					&& (first = FteCoerce(first, &e, &e2)) != NULL)
+				{
+					op = first;
+					tag = op->tag;
+					type_a = e->type->type;
+					type_b = e2->type->type;
+					goto retry;
+				}
 				MS_ParseError("type mismatch for %s", op->name);
 			}
 
@@ -236,33 +268,52 @@ static def_t *Term(void)
 {
 	def_t *d, *e, *e2;
 	etype_t t;
+	int tc;
 	char *name;
 
 	if(TK_CHECK(TK_NOT))
 	{
-		e = EX_Expression(NOT_PRIORITY);
-		t = e->type->type;
-		if(t == ev_float)
-			e2 = CO_GenCode(&pr_opcodes[OP_NOT_F], e, 0);
-		else if(t == ev_string)
-			e2 = CO_GenCode(&pr_opcodes[OP_NOT_S], e, 0);
-		else if(t == ev_entity)
-			e2 = CO_GenCode(&pr_opcodes[OP_NOT_ENT], e, 0);
-		else if(t == ev_vector)
-			e2 = CO_GenCode(&pr_opcodes[OP_NOT_V], e, 0);
-		else if(t == ev_function)
-			e2 = CO_GenCode(&pr_opcodes[OP_NOT_FNC], e, 0);
-		else
+		return EX_Not(EX_Expression(NOT_PRIORITY));
+	}
+
+	if(hcc_Fte)
+	{ // [2026-11-14] Komi - -fte: FTEQCC's unary operators and vector constructor
+		if(TK_CHECK(TK_MINUS))
 		{
-			e2 = NULL; // Shut up compiler warning
-			MS_ParseError("type mismatch for !");
+			e = EX_Expression(1);
+			t = e->type->type;
+			if(t == ev_float)
+				return CO_GenCode(&pr_opcodes[OP_SUB_F],
+					MakeImmediate(&type_float, 0, 0, 0), e);
+			if(t == ev_vector)
+				return CO_GenCode(&pr_opcodes[OP_SUB_V],
+					MakeImmediate(&type_vector, 0, 0, 0), e);
+			MS_ParseError("type mismatch for -");
 		}
-		return e2;
+		if(TK_CHECK(TK_PLUS))
+		{
+			return EX_Expression(1);
+		}
+		if(TK_TEST(TK_INC) || TK_TEST(TK_DEC))
+		{
+			tc = pr_tokenclass;
+			LX_Fetch();
+			return Increment(EX_Expression(1), tc, false);
+		}
+		if(TK_CHECK(TK_LBRACKET))
+		{
+			return VectorConstructor();
+		}
 	}
 
 	if(TK_CHECK(TK_LPAREN))
 	{
 		e = EX_Expression(TOP_PRIORITY);
+		// [2026-11-14] Komi - -fte: "(a, b)" evaluates both and gives b, as in FTEQCC
+		while(hcc_Fte && TK_CHECK(TK_COMMA))
+		{
+			e = EX_Expression(TOP_PRIORITY);
+		}
 		LX_Require(")");
 		return e;
 	}
@@ -345,6 +396,38 @@ static def_t *Term(void)
 
 //==========================================================================
 //
+// EX_Not
+//
+// !e, with the NOT opcode of e's type.
+//
+//==========================================================================
+
+def_t *EX_Not(def_t *e)
+{
+	etype_t t;
+	def_t *e2;
+
+	t = e->type->type;
+	if(t == ev_float)
+		e2 = CO_GenCode(&pr_opcodes[OP_NOT_F], e, 0);
+	else if(t == ev_string)
+		e2 = CO_GenCode(&pr_opcodes[OP_NOT_S], e, 0);
+	else if(t == ev_entity)
+		e2 = CO_GenCode(&pr_opcodes[OP_NOT_ENT], e, 0);
+	else if(t == ev_vector)
+		e2 = CO_GenCode(&pr_opcodes[OP_NOT_V], e, 0);
+	else if(t == ev_function)
+		e2 = CO_GenCode(&pr_opcodes[OP_NOT_FNC], e, 0);
+	else
+	{
+		e2 = NULL; // Shut up compiler warning
+		MS_ParseError("type mismatch for !");
+	}
+	return e2;
+}
+
+//==========================================================================
+//
 // ParseFunctionCall
 //
 //==========================================================================
@@ -353,7 +436,11 @@ static def_t *ParseFunctionCall(def_t *func)
 {
 	def_t *e;
 	def_t *args[2];
+	def_t *late[8];
+	opcode_t *stores[8];
 	int argCount;
+	int i;
+	qboolean extra;
 	type_t *t;
 
 	t = func->type;
@@ -381,7 +468,17 @@ static def_t *ParseFunctionCall(def_t *func)
 			}
 			if(t->num_parms != -1 && argCount >= t->num_parms)
 			{
-				MS_ParseError("too many parameters");
+				// [2026-11-14] Komi - -fte: a builtin takes extra arguments, as in FTEQCC
+				if(!hcc_Fte || !func->initialized
+					|| functions[G_FUNCTION(func->ofs)].first_statement >= 0)
+				{
+					MS_ParseError("too many parameters");
+				}
+				if(argCount == t->num_parms)
+				{
+					MS_ParseWarning("%s() is declared with %d parameters",
+						func->name, t->num_parms);
+				}
 			}
 			e = EX_Expression(TOP_PRIORITY);
 
@@ -401,38 +498,48 @@ static def_t *ParseFunctionCall(def_t *func)
 				}
 			}
 
-			if(t->num_parms != -1 && (e->type != t->parm_types[argCount]))
+			extra = t->num_parms != -1 && argCount >= t->num_parms;
+			if(t->num_parms != -1 && !extra
+				&& (e->type != t->parm_types[argCount]))
 			{
 				MS_ParseError("type mismatch on parm %i", argCount);
 			}
 
-			def_parms[argCount].type = t->parm_types[argCount];
+			def_parms[argCount].type = extra ? e->type : t->parm_types[argCount];
+			stores[argCount] = &pr_opcodes[extra
+				|| t->parm_types[argCount] == NULL // Variable args
+				|| t->parm_types[argCount]->type == ev_vector
+				? OP_STORE_V : OP_STORE_F];
 			if(argCount < 2)
 			{
 				args[argCount] = e;
 			}
+			else if(hcc_Fte)
+			{ // [2026-11-14] Komi - -fte: stored after the last argument, as FTEQCC does, so a call in a later argument can't overwrite it
+				late[argCount] = e;
+			}
 			else
 			{
-				if(t->parm_types[argCount] == NULL // Variable args
-					|| t->parm_types[argCount]->type == ev_vector)
-				{
-					CO_GenCode(&pr_opcodes[OP_STORE_V], e,
-						&def_parms[argCount]);
-				}
-				else
-				{
-					CO_GenCode(&pr_opcodes[OP_STORE_F], e,
-						&def_parms[argCount]);
-				}
+				CO_GenCode(stores[argCount], e, &def_parms[argCount]);
 			}
 			argCount++;
 		} while(TK_CHECK(TK_COMMA));
 		LX_Require(")");
+		for(i = 2; hcc_Fte && i < argCount; i++)
+		{
+			CO_GenCode(stores[i], late[i], &def_parms[i]);
+		}
 	}
 
-	if(t->num_parms != -1 && argCount != t->num_parms)
+	if(t->num_parms != -1 && argCount < t->num_parms)
 	{
-		MS_ParseError("too few parameters");
+		// [2026-11-14] Komi - -fte: the missing parameters are left undefined, as in FTEQCC
+		if(!hcc_Fte)
+		{
+			MS_ParseError("too few parameters");
+		}
+		MS_ParseWarning("too few parameters to %s(): the rest are undefined",
+			func->name);
 	}
 
 	CO_KeepReturns(func, args[0], args[1]);
@@ -700,4 +807,241 @@ static def_t *ParseIntrinsicFunc(char *name)
 		return &def_ret;
 	}
 	return NULL;
+}
+
+//==========================================================================
+//
+// FTEQCC compatibility (-fte)
+//
+// [2026-11-14] Komi - Helpers for the code FTEQCC accepts and Raven's
+// HCC doesn't: conversions between operand types, increments and the vector
+// constructor. Each produces what FTEQCC produces for the same line.
+//
+//==========================================================================
+
+// An immediate made while the lexer may hold another one.
+static def_t *MakeImmediate(type_t *type, float x, float y, float z)
+{
+	token_type_t tokenType;
+	type_t *immediateType;
+	eval_t immediate;
+	def_t *d;
+
+	tokenType = pr_token_type;
+	immediateType = pr_immediate_type;
+	immediate = pr_immediate;
+	pr_token_type = tt_immediate;
+	pr_immediate_type = type;
+	memset(&pr_immediate, 0, sizeof(pr_immediate));
+	pr_immediate.vector[0] = x;
+	pr_immediate.vector[1] = y;
+	pr_immediate.vector[2] = z;
+	d = CO_ParseImmediate();
+	pr_token_type = tokenType;
+	pr_immediate_type = immediateType;
+	pr_immediate = immediate;
+	return d;
+}
+
+// A value for && and ||. FTEQCC uses a string, entity or function as it is,
+// read as a float; a vector becomes 1 or 0.
+static def_t *Truth(def_t *e)
+{
+	int op;
+	def_t *d;
+
+	if(e->type->type != ev_float && e->type->type != ev_vector
+		&& e->retStatement == 0)
+	{ // the same register, typed as a float
+		d = malloc(sizeof(def_t));
+		*d = *e;
+		d->type = &type_float;
+		return d;
+	}
+	switch(e->type->type)
+	{
+	case ev_float:
+		return e;
+	case ev_vector:
+		op = OP_NOT_V;
+		break;
+	case ev_string:
+		op = OP_NOT_S;
+		break;
+	case ev_entity:
+		op = OP_NOT_ENT;
+		break;
+	case ev_function:
+		op = OP_NOT_FNC;
+		break;
+	default:
+		MS_ParseError("type mismatch for a condition");
+		return e;
+	}
+	e = CO_GenCode(&pr_opcodes[op], e, 0);
+	return CO_GenCode(&pr_opcodes[OP_NOT_F], e, 0);
+}
+
+// 1/e, folded when e is a constant.
+static def_t *Reciprocal(def_t *e)
+{
+	if(e->initialized && e->type->type == ev_float && G_FLOAT(e->ofs) != 0)
+	{
+		return MakeImmediate(&type_float, 1/G_FLOAT(e->ofs), 0, 0);
+	}
+	return CO_GenCode(&pr_opcodes[OP_DIV_F],
+		MakeImmediate(&type_float, 1, 0, 0), e);
+}
+
+// Returns the opcode family to match again after converting an operand, or
+// NULL when FTEQCC has no conversion either. first is the operator's first
+// opcode, e the left operand (the target of an assignment).
+static opcode_t *FteCoerce(opcode_t *first, def_t **e, def_t **e2)
+{
+	etype_t a, b;
+
+	a = (*e)->type->type;
+	if(a == ev_pointer)
+	{
+		a = (*e)->type->aux_type->type;
+	}
+	b = (*e2)->type->type;
+	if(first == &pr_opcodes[OP_AND] || first == &pr_opcodes[OP_OR])
+	{
+		if(a == ev_float && b == ev_float)
+		{
+			return NULL;
+		}
+		*e = Truth(*e);
+		*e2 = Truth(*e2);
+		return first;
+	}
+	if(a != ev_vector || b != ev_float)
+	{
+		return NULL;
+	}
+	if(first == &pr_opcodes[OP_DIV_F])
+	{ // v / f is v * (1/f)
+		*e2 = Reciprocal(*e2);
+		return &pr_opcodes[OP_MUL_F];
+	}
+	if(first == &pr_opcodes[OP_MULSTORE_F])
+	{ // ent.v *= f
+		return &pr_opcodes[(*e)->type->type == ev_pointer
+			? OP_MULSTOREP_V : OP_MULSTORE_V];
+	}
+	if(first == &pr_opcodes[OP_DIVSTORE_F])
+	{ // v /= f is v *= 1/f
+		*e2 = Reciprocal(*e2);
+		return &pr_opcodes[(*e)->type->type == ev_pointer
+			? OP_MULSTOREP_V : OP_MULSTORE_V];
+	}
+	if(first == &pr_opcodes[OP_STORE_F])
+	{ // v = f sets all three components to f
+		if((*e2)->initialized)
+		{
+			*e2 = MakeImmediate(&type_vector, G_FLOAT((*e2)->ofs),
+				G_FLOAT((*e2)->ofs), G_FLOAT((*e2)->ofs));
+		}
+		else
+		{
+			*e2 = CO_GenCode(&pr_opcodes[OP_MUL_FV], *e2,
+				MakeImmediate(&type_vector, 1, 1, 1));
+		}
+		return first;
+	}
+	return NULL;
+}
+
+// A field just read with LOAD becomes its address, for a store into it.
+static def_t *AddressOf(def_t *e)
+{
+	dstatement_t *s;
+
+	s = &statements[numstatements-1];
+	if((unsigned)(s->op-OP_LOAD_F) < 6 && s->c == e->ofs)
+	{
+		s->op = OP_ADDRESS;
+		def_pointer.type->aux_type = e->type;
+		e->type = def_pointer.type;
+	}
+	return e;
+}
+
+// ++x and --x give the new value; x++ and x-- (postfix) the old one.
+static def_t *Increment(def_t *e, int tokenclass, qboolean postfix)
+{
+	def_t *one;
+	def_t *r;
+	qboolean pointer;
+	qboolean add;
+
+	if(e == NULL || e->type->type != ev_float)
+	{
+		MS_ParseError("++ and -- need a float");
+	}
+	add = tokenclass == TK_INC;
+	e = AddressOf(e);
+	pointer = e->type->type == ev_pointer;
+	one = MakeImmediate(&type_float, 1, 0, 0);
+	if(pointer)
+	{
+		r = CO_GenCode(&pr_opcodes[add ? OP_ADDSTOREP_F : OP_SUBSTOREP_F],
+			one, e);
+	}
+	else
+	{
+		r = CO_GenCode(&pr_opcodes[add ? OP_ADDSTORE_F : OP_SUBSTORE_F],
+			one, e);
+	}
+	if(postfix)
+	{
+		r = CO_GenCode(&pr_opcodes[add ? OP_SUB_F : OP_ADD_F], r, one);
+	}
+	return r;
+}
+
+// [x, y, z] with any float expressions; constants make an immediate.
+static def_t *VectorConstructor(void)
+{
+	static int count;
+	def_t *c[3];
+	def_t *v;
+	def_t *component;
+	char name[64];
+	int i;
+
+	for(i = 0; i < 3; i++)
+	{
+		if(i > 0)
+		{
+			LX_Require(",");
+		}
+		c[i] = EX_Expression(TOP_PRIORITY);
+		if(c[i]->type->type != ev_float)
+		{
+			MS_ParseError("type mismatch in [x, y, z]");
+		}
+	}
+	LX_Require("]");
+	if(c[0]->initialized && c[1]->initialized && c[2]->initialized)
+	{
+		return MakeImmediate(&type_vector, G_FLOAT(c[0]->ofs),
+			G_FLOAT(c[1]->ofs), G_FLOAT(c[2]->ofs));
+	}
+	if(pr_scope == NULL)
+	{
+		MS_ParseError("[x, y, z] with variables outside a function");
+	}
+	// A hidden local holds the vector
+	sprintf(name, "vec%d$", ++count);
+	v = PR_GetDef(&type_vector, name, pr_scope, true);
+	v->referenceCount++;
+	for(i = 0; i < 3; i++)
+	{
+		sprintf(name, "vec%d$_%c", count, "xyz"[i]);
+		component = PR_GetDef(&type_float, name, pr_scope, false);
+		CO_GenCode(&pr_opcodes[OP_STORE_F], c[i], component);
+	}
+	return v;
 }
