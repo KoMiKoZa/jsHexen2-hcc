@@ -233,12 +233,18 @@ HCC defines it, with only the string fix above and the changes under Smaller cha
 With `-fte`, a call used as an argument can't overwrite the arguments already stored.
 
 FTEQCC's preprocessor (`#define`, `#ifdef`, `#include`), `?:`, `%`, integer types, classes and
-pointers aren't supported.
+pointers aren't supported. Code that uses them stops the build with an error; it is never compiled
+into something else.
 
 Two things keep Raven's meaning under `-fte`: `x (-) BITS` on a global clears the bits, and
 `$framesave` and `$framerestore` number frames as Raven's tools do.
 
-Storm Over Thyrion's source compiles unchanged with `-fte`.
+With `-fte`, the warnings about the overwritten return value and about `if (vector)` are off: code
+written for FTEQCC already means what this compiler builds.
+
+`-fte` is new. It has been tested on Storm Over Thyrion, whose source compiles unchanged. If your mod
+compiles with `-fte` but plays differently than with FTEQCC, please
+[open an issue](https://github.com/KoMiKoZa/jsHexen2-hcc/issues).
 
 ### Smaller changes
 

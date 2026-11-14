@@ -591,8 +591,13 @@ static void KeepReturn(def_t *d)
 		op = OP_STORE_F;
 		break;
 	}
-	MS_ParseWarning("kept the result of %s in a temp: a later call "
-		"in this expression would overwrite it", ReturnName(d));
+	// [2026-11-14] Komi - -fte: code written for FTEQCC never had this bug,
+	// so the warning tells its author nothing
+	if(!hcc_Fte)
+	{
+		MS_ParseWarning("kept the result of %s in a temp: a later call "
+			"in this expression would overwrite it", ReturnName(d));
+	}
 	size = type_size[d->type->type];
 	d->retStatement = 0;
 	if(hcc_OptimizeTemps)

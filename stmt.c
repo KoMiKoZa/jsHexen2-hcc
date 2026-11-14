@@ -616,8 +616,13 @@ static def_t *Condition(def_t *e, int *ifOpcode)
 	{
 		return e;
 	}
-	MS_ParseWarning("this vector condition tests x, y and z: "
-		"Raven's HCC tested only x");
+	// [2026-11-14] Komi - -fte: FTEQCC always tested all three, so code
+	// written for it means what it now gets
+	if(!hcc_Fte)
+	{
+		MS_ParseWarning("this vector condition tests x, y and z: "
+			"Raven's HCC tested only x");
+	}
 	*ifOpcode = *ifOpcode == OP_IF ? OP_IFNOT : OP_IF;
 	return CO_GenCode(&pr_opcodes[OP_NOT_V], e, 0);
 }
