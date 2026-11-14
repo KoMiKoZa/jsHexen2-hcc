@@ -3,7 +3,7 @@
 # jsHexen2 HexenC Compiler
 
 ![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)
-![HCC](https://img.shields.io/badge/hcc-1.0.1-orange.svg)
+![HCC](https://img.shields.io/badge/hcc-1.0.2-orange.svg)
 ![Base](https://img.shields.io/badge/base-Raven_HCC-8B0000.svg)
 
 > [!TIP]
@@ -236,12 +236,11 @@ a later argument can't overwrite them.
 FTEQCC's preprocessor (`#define`, `#ifdef`, `#include`), `?:`, `%`, integer types, classes and
 pointers aren't supported.
 
-FTEQCC's Hexen II mode has two bugs that `-fte` doesn't copy: `serverflags (-) X` on a global sets
-the bits instead of clearing them, and frames between `$framesave` and `$framerestore` come out one
-too high. The components of a vector field inside a `.union` also get their right offsets.
+Everything else keeps its meaning from Raven's HCC: `x (-) BITS` on a global clears the bits,
+`$framesave` and `$framerestore` number frames as Raven's tools do, and each component of a vector
+field inside a `.union` has its own offset.
 
-Storm Over Thyrion's source compiles unchanged with `-fte`. Its functions do the same as in an
-FTEQCC build, except where FTEQCC's bugs above made them differ.
+Storm Over Thyrion's source compiles unchanged with `-fte`.
 
 ### Smaller changes
 

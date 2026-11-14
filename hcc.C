@@ -778,17 +778,23 @@ void main(int argc, char **argv)
 
 	if(MS_CheckParm("-?") || MS_CheckParm("-help"))
 	{
-		printf(" -oi			  : Optimize Immediates\n");
-		printf(" -on			  : Optimize Name Table\n");
-		printf(" -ot              : Optimize Temps (reuse temp registers)\n");
-		printf(" -noretfix        : Let a later call overwrite an unused result, as HCC did\n");
-		printf(" -noifvecfix      : Test only x in if (vector) and the like, as HCC did\n");
-		printf(" -fte             : Also accept code written for FTEQCC\n");
+		// [2026-11-14] Komi - the same options and wording as the README's table
+		printf(" -name <file>     : The .src file to compile (default progs.src)\n");
+		printf(" -src <folder>    : Read the .src and .hc files from this folder\n");
 		printf(" -o <file>        : Write the progs to this file, not the one progs.src names\n");
-		printf(" -quiet           : Quiet mode\n");
-		printf(" -fileinfo        : Show object sizes per file\n");
-		printf(" -src <directory> : Specify source directory\n");
-		printf(" -name <source>   : Specify the name of the .src file\n");
+		printf(" -fte             : Also accept code written for FTEQCC\n");
+		printf(" -ot              : Share globals between intermediate results\n");
+		printf(" -noretfix        : In an expression with two calls, let the later call\n");
+		printf("                    overwrite the earlier result, as Raven's HCC did\n");
+		printf(" -noifvecfix      : Test only x in if (vector) and the other vector\n");
+		printf("                    conditions, as Raven's HCC did\n");
+		printf(" -oi              : Share immediates with named constants of the same value\n");
+		printf(" -on              : Smaller name table: locals and unsaved globals get no names\n");
+		printf(" -quiet           : Print less\n");
+		printf(" -fileinfo        : Print the size of each compiled file\n");
+		printf(" -nowarnings      : Print no warnings\n");
+		printf(" -urfunc          : List functions that are never referenced\n");
+		printf(" -asm <function ...> : Print the compiled statements of these functions\n");
 		return;
 	}
 
