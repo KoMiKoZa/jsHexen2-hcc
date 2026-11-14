@@ -69,6 +69,8 @@ for flags in (['-fte', '-ot'], ['-fte']):
     check(p.string('GREETING') == 'Hello', 'a string constant keeps its own value')
     check(p.float('LIMIT') == 10, 'a constant defined twice with the same value')
     check(p.float('big') == 1e10, 'a large integer is read as a float')
+    check(p.float('NEG') == -0.5 and p.float('NEG2') == -1, 'a minus sign in a global value')
+    check(p.defs['g_inc'][0] & 0x7fff == 2, 'x++ leaves an unrelated field read alone (g_inc stays a float)')
     check(not p.defs['NOT_SAVED'][0] & SAVE_GLOBAL, 'nosave keeps a global out of saves')
     hidden = [(t, o) for n, t, o in p.all_defs if n == 'other_count']
     check(len(hidden) == 2 and len({o for t, o in hidden}) == 2,

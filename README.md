@@ -205,7 +205,8 @@ hcc -fte -ot -name progs.src -o progs.dat
 ```
 
 `-o` is there because a `progs.src` written for FTEQCC often names a path on its author's machine.
-Without `-fte`, HCC compiles exactly as before.
+`progdefs.h` and `files.dat` are still written to the current folder. Without `-fte`, HCC compiles
+exactly as before.
 
 | FTEQCC code | Meaning |
 |---|---|
@@ -214,18 +215,18 @@ Without `-fte`, HCC compiles exactly as before.
 | `i++`, `++i`, `i--`, `--i` | add or subtract 1; the postfix form gives the old value |
 | `local float n = a - b;` | the value is assigned by code on every call |
 | a local or parameter named like a global | a new variable that hides the global |
-| `-x`, `+x`, `a-1` | unary minus and plus; `a-1` is a subtraction |
+| `-x`, `+x`, `a-1`, `float k = -.5;` | unary minus and plus; `a-1` is a subtraction |
 | `v / f`, `v /= f`, `ent.v *= f` | a vector divided or multiplied by a float |
 | `v = 0` | a float assigned to a vector sets all three components |
 | `[x, y, z]` | a vector made of any three float expressions |
 | `a && b` with entities, strings or functions | each value tested as it is |
-| `a (+) b` as a value | the new value of `a`, not `b` |
+| `a (+) b` as a value | the new value of `a`, not `b`; for an entity field such as `self.flags (+) b`, still `b` |
 | `(a, b)` and `a = 1, b = 2;` | the comma operator |
-| `void() f { ... }`, `void f(float x) = [frames] { ... }` | function bodies without `=` or with `=` before the frames |
+| `void() f { ... }`, `void() f [frames] { ... }`, `void f(float x) = [frames] { ... }` | function bodies without `=` or with `=` before the frames |
 | `f = { ... }` without `;`, a stray `;`, an empty block `{ }` | accepted |
 | `nosave float x;`, `const float x = 1;` | `nosave` keeps a global out of saves; `const` changes nothing |
 | `float x = 1;` twice with the same value, `{ 1, 2, 3, }` | accepted |
-| `$frame1\|\|x`, `.15`, `10000000000` | a frame name ends at `\|`; numbers as FTEQCC reads them |
+| `$frame1\|\|x`, `10000000000` | a frame name ends at `\|`; a large number keeps its value |
 | a builtin called with extra arguments, a function with too few | allowed, with a warning |
 | `[++ 27 .. 18]` | a cycle that counts down, with a warning; write `[-- 27 .. 18]` |
 

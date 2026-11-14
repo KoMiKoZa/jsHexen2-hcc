@@ -282,6 +282,11 @@ static def_t *Term(void)
 		{
 			e = EX_Expression(1);
 			t = e->type->type;
+			if(t == ev_float && e->initialized)
+				return MakeImmediate(&type_float, -G_FLOAT(e->ofs), 0, 0);
+			if(t == ev_vector && e->initialized)
+				return MakeImmediate(&type_vector, -G_FLOAT(e->ofs),
+					-G_FLOAT(e->ofs+1), -G_FLOAT(e->ofs+2));
 			if(t == ev_float)
 				return CO_GenCode(&pr_opcodes[OP_SUB_F],
 					MakeImmediate(&type_float, 0, 0, 0), e);
@@ -958,8 +963,12 @@ static def_t *AddressOf(def_t *e)
 {
 	dstatement_t *s;
 
+	// Only the LOAD that made e: under -ot a temp's ofs is still its index in
+	// the temp table, which can equal the ofs of an unrelated global
 	s = &statements[numstatements-1];
-	if((unsigned)(s->op-OP_LOAD_F) < 6 && s->c == e->ofs)
+	if((unsigned)(s->op-OP_LOAD_F) < 6 && e->name == NULL
+		&& (hcc_OptimizeTemps ? e->tempIndex > 0 && e->tempIndex-1 == s->c
+			: s->c == e->ofs))
 	{
 		s->op = OP_ADDRESS;
 		def_pointer.type->aux_type = e->type;
@@ -1037,6 +1046,7 @@ static def_t *VectorConstructor(void)
 	sprintf(name, "vec%d$", ++count);
 	v = PR_GetDef(&type_vector, name, pr_scope, true);
 	v->referenceCount++;
+	locals_end = numpr_globals; // saved like any local, for a nested call into this function
 	for(i = 0; i < 3; i++)
 	{
 		sprintf(name, "vec%d$_%c", count, "xyz"[i]);

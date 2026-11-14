@@ -909,7 +909,8 @@ void LX_Fetch(void)
 	AfterOperand = pr_token_type == tt_immediate
 		|| (pr_token_type == tt_name && strcmp(pr_token, "return")
 			&& strcmp(pr_token, "case"))
-		|| pr_tokenclass == TK_RPAREN || pr_tokenclass == TK_RBRACKET;
+		|| pr_tokenclass == TK_RPAREN || pr_tokenclass == TK_RBRACKET
+		|| pr_tokenclass == TK_INC || pr_tokenclass == TK_DEC;
 	pr_tokenclass = TK_NONE;
 
 	pr_token[0] = 0;

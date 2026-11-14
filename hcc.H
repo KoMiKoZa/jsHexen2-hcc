@@ -22,7 +22,7 @@
 // MACROS ------------------------------------------------------------------
 
 // [2026-11-14] Komi - These are the compiler's own table sizes, not limits
-// of the progs format; Storm Over Thyrion needs about 132,000 statements. A
+// of the progs format; Storm Over Thyrion needs about 135,000 statements. A
 // progs that outgrows one stops the build with an error.
 #define MAX_STRINGS 500000
 #define MAX_GLOBALS 65536
