@@ -4,14 +4,10 @@
 float random(void) : 7;
 
 vector dir;
+float sum;
 
-float() two_calls =
-{
-	return random() + random();
-};
-
-void() vector_test =
+void() both =
 {
 	if (dir)
-		dir = '0 0 0';
+		sum = random() + random();
 };
