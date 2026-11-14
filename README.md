@@ -125,7 +125,7 @@ change how the game plays:
 - Some particle sprays come out narrower than written.
 
 This compiler keeps the first result before the second call runs, so the line does what it says.
-It prints a warning with the file and line at each place it fixes:
+It prints a warning with the file and line at each place it fixes (not with `-fte`):
 
 ```
 golem.hc(1026) : warning : kept the result of visible() in a temp: a later call in this expression would overwrite it
@@ -153,7 +153,8 @@ Hexen II's own game code has 34 such tests: 24 in the Praevus boss, the others i
 the hydra, the tornado, the mezzoman's reflection, pushable objects, the Pentacles and ordered
 counters.
 
-This compiler tests all three components, as `!vector` does, and prints a warning at each place:
+This compiler tests all three components, as `!vector` does, and prints a warning at each place
+(not with `-fte`):
 
 ```
 object.hc(352) : warning : this vector condition tests x, y and z: Raven's HCC tested only x
@@ -239,8 +240,8 @@ into something else.
 Two things keep Raven's meaning under `-fte`: `x (-) BITS` on a global clears the bits, and
 `$framesave` and `$framerestore` number frames as Raven's tools do.
 
-With `-fte`, the warnings about the overwritten return value and about `if (vector)` are off: code
-written for FTEQCC already means what this compiler builds.
+With `-fte`, the warnings about the overwritten return value and about `if (vector)` are off. They
+mark places where the code's meaning changes from Raven's HCC, and code written for FTEQCC has none.
 
 `-fte` is new. It has been tested on Storm Over Thyrion, whose source compiles unchanged. If your mod
 compiles with `-fte` but plays differently than with FTEQCC, please

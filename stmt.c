@@ -616,7 +616,7 @@ static def_t *Condition(def_t *e, int *ifOpcode)
 	{
 		return e;
 	}
-	// [2026-11-14] Komi - -fte: FTEQCC always tested all three, so code
+	// [2026-11-14] Komi - -fte: FTEQCC tests all three by default, so code
 	// written for it means what it now gets
 	if(!hcc_Fte)
 	{

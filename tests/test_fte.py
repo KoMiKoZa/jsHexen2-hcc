@@ -22,12 +22,12 @@ def check(ok, what):
         failures.append(what)
 
 
-def compile_fte(flags):
+def compile_fte(flags, src=SRC, out_name='fte.dat'):
     work = tempfile.mkdtemp(prefix='hcc_fte_')
-    for name in os.listdir(SRC):
-        shutil.copy(os.path.join(SRC, name), work)
+    for name in os.listdir(src):
+        shutil.copy(os.path.join(src, name), work)
     r = subprocess.run([HCC] + flags, cwd=work, capture_output=True, text=True)
-    out = os.path.join(work, 'fte.dat')
+    out = os.path.join(work, out_name)
     data = open(out, 'rb').read() if os.path.exists(out) else None
     shutil.rmtree(work)
     return r, data
@@ -79,5 +79,13 @@ for flags in (['-fte', '-ot'], ['-fte']):
     check(len(hidden) == 2 and len({o for t, o in hidden}) == 2,
           'a local named like a global is a separate variable')
     check('defined again with the same value' in r.stdout, 'warns about the repeated constant')
+
+WARN = os.path.join(ROOT, 'tests', 'warn')
+for flags, expect in ((['-ot'], True), (['-fte', '-ot'], False)):
+    r, data = compile_fte(flags, WARN, 'warn.dat')
+    check(data is not None, 'warn.hc compiles with %s' % ' '.join(flags))
+    found = ('kept the result of random()' in r.stdout, 'this vector condition tests x, y and z' in r.stdout)
+    check(found == (expect, expect), 'the two Raven-bug warnings are %s with %s'
+          % ('printed' if expect else 'off', ' '.join(flags)))
 
 sys.exit(1 if failures else 0)
