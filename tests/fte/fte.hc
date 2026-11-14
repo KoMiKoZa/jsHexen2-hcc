@@ -22,6 +22,8 @@ nosave float NOT_SAVED;
 float big = 10000000000;
 float NEG = -.5;
 float NEG2 = - 1;
+float NEGARR[2] = { -.5, - 1 };
+float NEGZERO = - 0;
 
 void() helper;							// prototype
 void() helper { };						// body without "=", empty block

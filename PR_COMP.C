@@ -54,6 +54,7 @@ static int NewTemp(def_t *d, int statement, int size);
 static void TempBeginFunction(void);
 static void TempEndFunction(void);
 static void FteInitLocal(def_t *def, type_t *type);
+static void FteNegateImmediate(void);
 
 // EXTERNAL DATA DECLARATIONS ----------------------------------------------
 
@@ -1567,6 +1568,18 @@ def_t *PR_GetDef(type_t *type, char *name, def_t *scope,
 //
 //==========================================================================
 
+// [2026-11-14] Komi - -fte: the number the lexer just read, negated; 0 - v so
+// that zero stays +0 (IF and IFNOT test the bits, and -0 isn't zero there)
+static void FteNegateImmediate(void)
+{
+	pr_immediate.vector[0] = 0 - pr_immediate.vector[0];
+	if(pr_immediate_type == &type_vector)
+	{
+		pr_immediate.vector[1] = 0 - pr_immediate.vector[1];
+		pr_immediate.vector[2] = 0 - pr_immediate.vector[2];
+	}
+}
+
 static void FteInitLocal(def_t *def, type_t *type)
 {
 	static const int storeOps[8] =
@@ -1687,12 +1700,7 @@ void CO_ParseDefs(void)
 				{
 					MS_ParseError("a number must follow - in the value of %s", name);
 				}
-				pr_immediate.vector[0] = -pr_immediate.vector[0];
-				if(pr_immediate_type == &type_vector)
-				{
-					pr_immediate.vector[1] = -pr_immediate.vector[1];
-					pr_immediate.vector[2] = -pr_immediate.vector[2];
-				}
+				FteNegateImmediate();
 			}
 			if(def->initialized && hcc_Fte && elementCount == 0
 				&& type->type != ev_function && pr_token_type == tt_immediate
@@ -1735,6 +1743,17 @@ void CO_ParseDefs(void)
 				offset = def->ofs;
 				do
 				{
+					// [2026-11-14] Komi - -fte: "{ -.5, - 1 }", as in a single value
+					if(hcc_Fte && TK_CHECK(TK_MINUS))
+					{
+						if(pr_token_type != tt_immediate
+							|| (pr_immediate_type != &type_float
+								&& pr_immediate_type != &type_vector))
+						{
+							MS_ParseError("a number must follow - in the value of %s", name);
+						}
+						FteNegateImmediate();
+					}
 					if(pr_token_type != tt_immediate)
 					{
 						MS_ParseError("immediate type required for %s",

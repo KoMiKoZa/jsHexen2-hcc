@@ -70,6 +70,9 @@ for flags in (['-fte', '-ot'], ['-fte']):
     check(p.float('LIMIT') == 10, 'a constant defined twice with the same value')
     check(p.float('big') == 1e10, 'a large integer is read as a float')
     check(p.float('NEG') == -0.5 and p.float('NEG2') == -1, 'a minus sign in a global value')
+    arr = p.defs['NEGARR'][1]
+    check(struct.unpack_from('<2f', p.data, p.ofs_glob + 4 * arr) == (-0.5, -1.0), 'a minus sign in array values')
+    check(struct.unpack_from('<I', p.data, p.ofs_glob + 4 * p.defs['NEGZERO'][1])[0] == 0, '- 0 is +0, not -0')
     check(p.defs['g_inc'][0] & 0x7fff == 2, 'x++ leaves an unrelated field read alone (g_inc stays a float)')
     check(not p.defs['NOT_SAVED'][0] & SAVE_GLOBAL, 'nosave keeps a global out of saves')
     hidden = [(t, o) for n, t, o in p.all_defs if n == 'other_count']

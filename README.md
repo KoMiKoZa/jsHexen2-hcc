@@ -215,7 +215,7 @@ exactly as before.
 | `i++`, `++i`, `i--`, `--i` | add or subtract 1; the postfix form gives the old value |
 | `local float n = a - b;` | the value is assigned by code on every call |
 | a local or parameter named like a global | a new variable that hides the global |
-| `-x`, `+x`, `a-1`, `float k = -.5;` | unary minus and plus; `a-1` is a subtraction |
+| `-x`, `+x`, `a-1`, `float k = -.5;` | unary minus and plus; `a-1` is a subtraction; `-K` uses the value `K` is declared with, as a global declared with a value is a constant |
 | `v / f`, `v /= f`, `ent.v *= f` | a vector divided or multiplied by a float |
 | `v = 0` | a float assigned to a vector sets all three components |
 | `[x, y, z]` | a vector made of any three float expressions |

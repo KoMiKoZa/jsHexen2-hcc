@@ -282,11 +282,12 @@ static def_t *Term(void)
 		{
 			e = EX_Expression(1);
 			t = e->type->type;
+			// a constant folds; 0 - v keeps -0 out of the progs
 			if(t == ev_float && e->initialized)
-				return MakeImmediate(&type_float, -G_FLOAT(e->ofs), 0, 0);
+				return MakeImmediate(&type_float, 0 - G_FLOAT(e->ofs), 0, 0);
 			if(t == ev_vector && e->initialized)
-				return MakeImmediate(&type_vector, -G_FLOAT(e->ofs),
-					-G_FLOAT(e->ofs+1), -G_FLOAT(e->ofs+2));
+				return MakeImmediate(&type_vector, 0 - G_FLOAT(e->ofs),
+					0 - G_FLOAT(e->ofs+1), 0 - G_FLOAT(e->ofs+2));
 			if(t == ev_float)
 				return CO_GenCode(&pr_opcodes[OP_SUB_F],
 					MakeImmediate(&type_float, 0, 0, 0), e);
