@@ -84,6 +84,9 @@ the C library; other compilers are untested.
 to 20%, leaving room for roughly four times as much new code. The file also comes out about 17%
 smaller.
 
+An intermediate result is a value an expression computes on the way, such as `a + b` in
+`c = (a + b) * d;`.
+
 Raven's HCC gives every intermediate result of every expression a global of its own, and never
 reuses it. A `progs.dat` can address at most 65,536 globals, so a large progs runs out long before
 it runs out of anything else: jsHexen2's progs needs 65,518 of them that way, and Raven's own
@@ -100,6 +103,7 @@ moment they are computed and their last use. The same jsHexen2 progs compiles to
   compare a build with one from Raven's HCC, or to rule out the shared globals while you track
   down a problem.
 - `-ot`, which turned the sharing on in earlier versions, is still accepted and changes nothing.
+  If both are given, `-noot` wins.
 
 ### A progs too big for the format stops the build
 
@@ -214,8 +218,8 @@ hcc -fte -o progs.dat
 ```
 
 `-o` writes the progs to the file you name, whatever path `progs.src` gives. `files.dat` is still
-written to the current folder. Without `-fte`, HCC compiles HexenC as Raven's HCC defines it, with
-only the string fix above and the changes under Smaller changes.
+written to the current folder, or to the `-src` folder. Without `-fte`, HCC accepts the HexenC that
+Raven's HCC accepts, with the few additions under Smaller changes.
 
 | FTEQCC code | Meaning |
 |---|---|
@@ -252,7 +256,7 @@ With `-fte`, the warnings about the overwritten return value and about `if (vect
 mark places where the code's meaning changes from Raven's HCC, and code written for FTEQCC has none.
 
 `-fte` is new. It has been tested on Storm Over Thyrion, whose source compiles unchanged. Mathuzzz,
-its author, built it with `-fte -ot` and played its Winter through to the courtyard on uHexen2. If
+its author, built it with `-fte` and played its Winter through to the courtyard on uHexen2. If
 your mod compiles with `-fte` but plays differently than with FTEQCC, please
 [open an issue](https://github.com/KoMiKoZa/jsHexen2-hcc/issues).
 
@@ -270,11 +274,13 @@ your mod compiles with `-fte` but plays differently than with FTEQCC, please
   the progs that other compilers don't write. Engines that compare field names when loading a
   save, jsHexen2 among them, could then refuse saves after the progs was rebuilt with another
   compiler. The compiled code is unchanged.
-- `-quiet` also silences the line about intermediate results.
+- `-quiet` also hides the `temps:` line, which reports how intermediate results share globals.
 - Each progs names the compiler and the options that built it, in one string such as
-  `jsHexen2-hcc 1.0.2 -fte -ot`, which you can find with a text or hex viewer. Nothing reads it,
-  so every engine loads the file as before. It has no date, so the same source and options always
-  give the same file.
+  `jsHexen2-hcc 1.0.2 -fte -ot`, which you can find with a text or hex viewer. After the version
+  come `-fte` if it was given, `-ot` (the default) or `-noot`, then any of `-noretfix`,
+  `-noifvecfix`, `-oi` and `-on` that were given. Nothing reads it, so every engine loads the file
+  as before. It contains no date, so rebuilding the same source with the same options gives an
+  identical file.
 
 ## Credits
 

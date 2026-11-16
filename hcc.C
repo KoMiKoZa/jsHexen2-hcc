@@ -334,7 +334,7 @@ strofs = (strofs+3)&~3;
 	printf("object file %s\n", LongPath(destfile));
 	printf("      registers: %-6d / %-6d (%6d)\n", numpr_globals,
 		MAX_REGS, numpr_globals*sizeof(float));
-	printf("     statements: %-10d / %-10d (%10)\n", numstatements,
+	printf("     statements: %-10d / %-10d (%10d)\n", numstatements,
 		MAX_STATEMENTS, numstatements*sizeof(dstatement_t));
 	printf("      functions: %-6d / %-6d (%6d)\n", numfunctions,
 		MAX_FUNCTIONS, numfunctions*sizeof(dfunction_t));
@@ -678,6 +678,14 @@ static qboolean FinishCompilation(void)
 static char	*progdefsText;
 static int	progdefsLength;
 static int	progdefsSize;
+
+//==========================================================================
+//
+// PD_Print
+//
+// Appends formatted text to progdefsText.
+//
+//==========================================================================
 
 static void PD_Print(char *format, ...)
 {

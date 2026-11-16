@@ -67,8 +67,10 @@ def stamp_of(data):
 
 def referenced(data, ofs):
     h = header(data)
+    if ofs in struct.unpack_from('<%di' % h[13], data, h[12]):
+        return True  # any global, named or not, that could hold a string
     for t, o, n in struct.iter_unpack('<HHi', data[h[4]:h[4] + h[5] * 8]):
-        if n == ofs or (t & 0x7fff == 1 and struct.unpack_from('<i', data, h[12] + 4 * o)[0] == ofs):
+        if n == ofs:
             return True
     for t, o, n in struct.iter_unpack('<HHi', data[h[6]:h[6] + h[7] * 8]):
         if n == ofs:
@@ -96,6 +98,8 @@ stamp, ofs = stamp_of(a)
 check(stamp == 'jsHexen2-hcc %s -ot' % VERSION, 'the stamp names the version and -ot: %r' % stamp)
 check(a == b, 'two builds of the same source are byte-identical')
 check(not referenced(a, ofs), 'nothing in the progs refers to the stamp')
+_, on, _ = compile_in(WARN, ['-on'], 'warn.dat')
+check(on is not None and not referenced(on, stamp_of(on)[1]), 'nothing refers to the stamp with -on either')
 for flags, expect in ((['-fte'], '-fte -ot'), (['-noot', '-noretfix', '-noifvecfix', '-oi', '-on'],
                                                '-noot -noretfix -noifvecfix -oi -on'),
                       (['-on', '-oi', '-noot'], '-noot -oi -on'),
