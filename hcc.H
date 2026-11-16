@@ -21,12 +21,12 @@
 
 // MACROS ------------------------------------------------------------------
 
-// [2026-11-14] Komi - These are the compiler's own table sizes, not limits
-// of the progs format; Storm Over Thyrion needs about 135,000 statements. A
-// progs that outgrows one stops the build with an error.
 // [2026-11-16] Komi - written into every progs with the options that shape it
 #define HCC_VERSION "1.0.2"
 
+// [2026-11-14] Komi - These are the compiler's own table sizes, not limits
+// of the progs format; Storm Over Thyrion needs about 135,000 statements. A
+// progs that outgrows one stops the build with an error.
 #define MAX_STRINGS 500000
 #define MAX_GLOBALS 65536
 #define MAX_FIELDS 1024
