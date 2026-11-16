@@ -11,7 +11,8 @@
 > `progs.dat`, so it also works with Raven's original Hexen II. It's a drop-in replacement for
 > Raven's HCC with the same command line, and your code compiles as it is.
 >
-> - **Fits about four times more code:** `-ot` cuts the globals a progs needs by about 80%.
+> - **Fits about four times more code:** a progs needs about 80% fewer globals than with Raven's
+>   HCC.
 > - **Fixes Raven compiler bugs** that silently broke parts of Hexen II's own game code, and
 >   warns you where your code had them.
 > - **Never writes a progs too big for the format:** the build stops with an error instead.
@@ -29,8 +30,11 @@ file, and the lines after it list the `.hc` files in compile order, as with Rave
 
 ```
 cd portals
-hcc -ot -name progs.src
+hcc
 ```
+
+It prints the full path of the progs it wrote, after `object file`, so you can check that it's the
+file your game loads.
 
 It compiles HexenC as Raven's HCC defines it. For a mod written for FTEQCC, add `-fte` (see
 [Code written for FTEQCC](#code-written-for-fteqcc-fte)).
@@ -41,7 +45,7 @@ It compiles HexenC as Raven's HCC defines it. For a mod written for FTEQCC, add 
 | `-src <folder>` | Read the `.src` and `.hc` files from this folder. |
 | `-o <file>` | Write the progs to this file instead of the one named in `progs.src`. |
 | `-fte` | Also accept code written for FTEQCC. |
-| `-ot` | Share globals between intermediate results (see below). |
+| `-noot` | Give every intermediate result a global of its own, as Raven's HCC did (see [Room for much more code](#room-for-much-more-code)). |
 | `-noretfix` | In an expression with two calls, let the later call overwrite the earlier result, as Raven's HCC did. |
 | `-noifvecfix` | Test only x in `if (vector)` and the other vector conditions, as Raven's HCC did. |
 | `-oi` | Share immediates (constants) with named constants of the same value. |
@@ -50,10 +54,11 @@ It compiles HexenC as Raven's HCC defines it. For a mod written for FTEQCC, add 
 | `-fileinfo` | Print the size of each compiled file. |
 | `-nowarnings` | Print no warnings. |
 | `-urfunc` | List functions that are never referenced. |
+| `-progdefs` | Also write `progdefs.h`, the engine-facing globals and fields, to the current folder. Only engine source code uses it. |
 | `-asm <function ...>` | Print the compiled statements of these functions. |
 
-Besides `progs.dat`, HCC writes `progdefs.h` (the engine-facing globals and fields) and `files.dat`
-(the precache lists).
+Besides `progs.dat`, HCC writes `files.dat` (the precache lists) to the current folder, or to the
+`-src` folder.
 
 `-on` drops the names of locals and of globals that saves don't store, so engine features or tools
 that look up definitions by name may not find them; leave it off unless you need the space.
@@ -73,25 +78,28 @@ the C library; other compilers are untested.
 
 ## What's different from Raven's HCC
 
-### `-ot`: room for much more code
+### Room for much more code
 
-**`-ot` cuts the globals a progs needs by about 80%.** jsHexen2's progs went from 99.8% of the
-65,536 limit to 20%, leaving room for roughly four times as much new code. The file also comes out
-about 17% smaller.
+**A progs needs about 80% fewer globals.** jsHexen2's progs went from 99.97% of the 65,536 limit
+to 20%, leaving room for roughly four times as much new code. The file also comes out about 17%
+smaller.
 
-HCC gives every intermediate result of every expression a global of its own, and never reuses it.
-A `progs.dat` can address at most 65,536 globals, so a large progs runs out long before it runs out
-of anything else: jsHexen2's progs uses 65,392 of them, and Raven's own Portal of Praevus progs
-uses 64,454.
+Raven's HCC gives every intermediate result of every expression a global of its own, and never
+reuses it. A `progs.dat` can address at most 65,536 globals, so a large progs runs out long before
+it runs out of anything else: jsHexen2's progs needs 65,518 of them that way, and Raven's own
+Portal of Praevus progs 64,454.
 
-With `-ot`, intermediate results share globals whenever no other code can run between the moment
-they are computed and their last use. The same jsHexen2 progs compiles to 12,997 globals.
+This compiler lets intermediate results share globals whenever no other code can run between the
+moment they are computed and their last use. The same jsHexen2 progs compiles to 13,023 globals.
 
 - The instructions are the same; only the globals that hold intermediate results change. A progs
-  built with `-ot` behaves exactly like one built without it.
+  built either way behaves exactly the same.
 - Saves store globals, fields and functions by name, and none of those names change, so saves
   load in either build.
-- Without `-ot`, intermediate results get their globals the way Raven's HCC gives them.
+- `-noot` gives every intermediate result a global of its own, as Raven's HCC did. Use it to
+  compare a build with one from Raven's HCC, or to rule out the shared globals while you track
+  down a problem.
+- `-ot`, which turned the sharing on in earlier versions, is still accepted and changes nothing.
 
 ### A progs too big for the format stops the build
 
@@ -132,7 +140,7 @@ golem.hc(1026) : warning : kept the result of visible() in a temp: a later call 
 ```
 
 Code without such an expression compiles to the same instructions as with Raven's HCC. The fix is
-on by default, with or without `-ot`. The kept result is an ordinary intermediate result, so if a
+on by default, with or without `-noot`. The kept result is an ordinary intermediate result, so if a
 function calls itself between the two calls, as in `return fib(n - 1) + fib(n - 2);`, the inner
 call can still overwrite it, as it can any other intermediate result of that expression; keep such
 a result in a local variable.
@@ -202,12 +210,12 @@ With `-fte`, HCC also accepts the FTEQCC syntax that Hexen II mods use, so many 
 FTEQCC compile without edits. The table below shows what it accepts.
 
 ```
-hcc -fte -ot -name progs.src -o progs.dat
+hcc -fte -o progs.dat
 ```
 
-`-o` writes the progs to the file you name, whatever path `progs.src` gives. `progdefs.h` and
-`files.dat` are still written to the current folder. Without `-fte`, HCC compiles HexenC as Raven's
-HCC defines it, with only the string fix above and the changes under Smaller changes.
+`-o` writes the progs to the file you name, whatever path `progs.src` gives. `files.dat` is still
+written to the current folder. Without `-fte`, HCC compiles HexenC as Raven's HCC defines it, with
+only the string fix above and the changes under Smaller changes.
 
 | FTEQCC code | Meaning |
 |---|---|
@@ -243,8 +251,9 @@ Two things keep Raven's meaning under `-fte`: `x (-) BITS` on a global clears th
 With `-fte`, the warnings about the overwritten return value and about `if (vector)` are off. They
 mark places where the code's meaning changes from Raven's HCC, and code written for FTEQCC has none.
 
-`-fte` is new. It has been tested on Storm Over Thyrion, whose source compiles unchanged. If your mod
-compiles with `-fte` but plays differently than with FTEQCC, please
+`-fte` is new. It has been tested on Storm Over Thyrion, whose source compiles unchanged. Mathuzzz,
+its author, built it with `-fte -ot` and played its Winter through to the courtyard on uHexen2. If
+your mod compiles with `-fte` but plays differently than with FTEQCC, please
 [open an issue](https://github.com/KoMiKoZa/jsHexen2-hcc/issues).
 
 ### Smaller changes
@@ -261,7 +270,11 @@ compiles with `-fte` but plays differently than with FTEQCC, please
   the progs that other compilers don't write. Engines that compare field names when loading a
   save, jsHexen2 among them, could then refuse saves after the progs was rebuilt with another
   compiler. The compiled code is unchanged.
-- `-quiet` also silences the line `-ot` prints about intermediate results.
+- `-quiet` also silences the line about intermediate results.
+- Each progs names the compiler and the options that built it, in one string such as
+  `jsHexen2-hcc 1.0.2 -fte -ot`, which you can find with a text or hex viewer. Nothing reads it,
+  so every engine loads the file as before. It has no date, so the same source and options always
+  give the same file.
 
 ## Credits
 

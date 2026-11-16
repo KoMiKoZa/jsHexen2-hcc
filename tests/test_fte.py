@@ -56,10 +56,10 @@ class Progs:
         return self.s(struct.unpack_from('<i', self.data, self.ofs_glob + 4 * self.defs[name][1])[0])
 
 
-r, data = compile_fte(['-ot'])
+r, data = compile_fte([])
 check(r.returncode != 0, 'without -fte the FTEQCC code is rejected')
 
-for flags in (['-fte', '-ot'], ['-fte']):
+for flags in (['-fte'], ['-fte', '-noot']):
     r, data = compile_fte(flags)
     check(r.returncode == 0 and data is not None, 'compiles with %s' % ' '.join(flags))
     if data is None:
@@ -81,11 +81,11 @@ for flags in (['-fte', '-ot'], ['-fte']):
     check('defined again with the same value' in r.stdout, 'warns about the repeated constant')
 
 WARN = os.path.join(ROOT, 'tests', 'warn')
-for flags, expect in ((['-ot'], True), (['-fte', '-ot'], False)):
+for flags, expect in (([], True), (['-fte'], False), (['-noot'], True)):
     r, data = compile_fte(flags, WARN, 'warn.dat')
-    check(data is not None, 'warn.hc compiles with %s' % ' '.join(flags))
+    check(data is not None, 'warn.hc compiles with %s' % (' '.join(flags) or 'no options'))
     found = ('kept the result of random()' in r.stdout, 'this vector condition tests x, y and z' in r.stdout)
     check(found == (expect, expect), 'the two Raven-bug warnings are %s with %s'
-          % ('printed' if expect else 'off', ' '.join(flags)))
+          % ('printed' if expect else 'off', ' '.join(flags) or 'no options'))
 
 sys.exit(1 if failures else 0)
